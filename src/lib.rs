@@ -1,4 +1,4 @@
-use state::State;
+use renderer::{Context, Renderer};
 use winit::{
     event::*,
     event_loop::EventLoop,
@@ -8,8 +8,8 @@ use winit::{
 
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
-
-mod state;
+mod mesh;
+mod renderer;
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen(start))]
 pub async fn run() {
@@ -44,7 +44,7 @@ pub async fn run() {
             .expect("Couldn't append canvas to document body.");
     }
 
-    let mut state = State::new(&window).await;
+    let mut renderer = Renderer::new(&window).await;
     let mut surface_configured = false;
 
     event_loop
@@ -53,8 +53,8 @@ pub async fn run() {
                 Event::WindowEvent {
                     ref event,
                     window_id,
-                } if window_id == state.window().id() => {
-                    if !state.input(event) {
+                } if window_id == renderer.window().id() => {
+                    if !renderer.input(event) {
                         // UPDATED!
                         match event {
                             WindowEvent::CloseRequested
@@ -70,23 +70,23 @@ pub async fn run() {
                             WindowEvent::Resized(physical_size) => {
                                 log::info!("physical_size: {physical_size:?}");
                                 surface_configured = true;
-                                state.resize(*physical_size);
+                                renderer.resize(*physical_size);
                             }
                             WindowEvent::RedrawRequested => {
                                 // This tells winit that we want another frame after this one
-                                state.window().request_redraw();
+                                renderer.window().request_redraw();
 
                                 if !surface_configured {
                                     return;
                                 }
 
-                                state.update();
-                                match state.render() {
+                                renderer.update();
+                                match renderer.render() {
                                     Ok(_) => {}
                                     // Reconfigure the surface if it's lost or outdated
                                     Err(
                                         wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated,
-                                    ) => state.resize(state.size),
+                                    ) => renderer.resize(renderer.size),
                                     // The system is out of memory, we should probably quit
                                     Err(wgpu::SurfaceError::OutOfMemory) => {
                                         log::error!("OutOfMemory");
