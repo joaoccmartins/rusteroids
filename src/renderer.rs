@@ -1,71 +1,30 @@
-use std::iter;
+use std::{
+    iter,
+    ops::{Deref, DerefMut},
+};
 
 use winit::{event::*, window::Window};
 
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
-use wgpu::util::DeviceExt;
+use crate::mesh::{Mesh, Vertex};
 
-#[repr(C)]
-#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-struct Vertex {
-    position: [f32; 2],
-    color: [f32; 3],
-}
-
-impl Vertex {
-    const ATTRIBS: [wgpu::VertexAttribute; 2] =
-        wgpu::vertex_attr_array![0 => Float32x2, 1 => Float32x3];
-
-    fn desc() -> wgpu::VertexBufferLayout<'static> {
-        wgpu::VertexBufferLayout {
-            array_stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress,
-            step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: &Self::ATTRIBS,
-        }
-    }
-}
-
-const WEDGE: &[Vertex] = &[
-    Vertex {
-        position: [0.0, 1.0],
-        color: [1.0, 1.0, 1.0],
-    },
-    Vertex {
-        position: [0.5, -1.0],
-        color: [1.0, 1.0, 1.0],
-    },
-    Vertex {
-        position: [0.0, -0.5],
-        color: [1.0, 1.0, 1.0],
-    },
-    Vertex {
-        position: [-0.5, -1.0],
-        color: [1.0, 1.0, 1.0],
-    },
-    Vertex {
-        position: [0.0, 1.0],
-        color: [1.0, 1.0, 1.0],
-    },
-];
-
-pub struct State<'a> {
+pub struct Context<'a> {
     pub size: winit::dpi::PhysicalSize<u32>,
     surface: wgpu::Surface<'a>,
     device: wgpu::Device,
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
     render_pipeline: wgpu::RenderPipeline,
-    vertex_buffer: wgpu::Buffer,
     // The window must be declared after the surface so
     // it gets dropped after it as the surface contains
     // unsafe references to the window's resources.
     window: &'a Window,
 }
 
-impl<'a> State<'a> {
-    pub async fn new(window: &'a Window) -> State<'a> {
+impl<'a> Context<'a> {
+    pub async fn new(window: &'a Window) -> Context<'a> {
         let size = window.inner_size();
 
         // The instance is a handle to our GPU
@@ -74,6 +33,7 @@ impl<'a> State<'a> {
             #[cfg(not(target_arch = "wasm32"))]
             backends: wgpu::Backends::PRIMARY,
             #[cfg(target_arch = "wasm32")]
+            // TODO: Change to WebGPU
             backends: wgpu::Backends::GL,
             ..Default::default()
         });
@@ -157,7 +117,7 @@ impl<'a> State<'a> {
             primitive: wgpu::PrimitiveState {
                 topology: wgpu::PrimitiveTopology::LineStrip,
                 strip_index_format: None,
-                front_face: wgpu::FrontFace::Ccw, // 2.
+                front_face: wgpu::FrontFace::Ccw,
                 cull_mode: Some(wgpu::Face::Back),
                 // Setting this to anything other than Fill requires Features::NON_FILL_POLYGON_MODE
                 polygon_mode: wgpu::PolygonMode::Fill,
@@ -176,12 +136,6 @@ impl<'a> State<'a> {
             cache: None,
         });
 
-        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Vertex Buffer"),
-            contents: bytemuck::cast_slice(WEDGE),
-            usage: wgpu::BufferUsages::VERTEX,
-        });
-
         Self {
             surface,
             device,
@@ -190,7 +144,6 @@ impl<'a> State<'a> {
             size,
             window,
             render_pipeline,
-            vertex_buffer,
         }
     }
 
@@ -207,25 +160,33 @@ impl<'a> State<'a> {
             self.surface.configure(&self.device, &self.config);
         }
     }
+}
 
-    #[allow(unused_variables)]
-    pub fn input(&mut self, event: &WindowEvent) -> bool {
-        false
+pub struct Renderer<'a> {
+    meshes: Vec<Mesh>,
+    context: Context<'a>,
+}
+
+impl<'a> Renderer<'a> {
+    pub async fn new(window: &'a Window) -> Renderer<'a> {
+        Self {
+            meshes: vec![],
+            context: Context::<'a>::new(&window).await,
+        }
     }
 
-    pub fn update(&mut self) {}
-
     pub fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
-        let output = self.surface.get_current_texture()?;
+        let output = self.context.surface.get_current_texture()?;
         let view = output
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
 
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Render Encoder"),
-            });
+        let mut encoder =
+            self.context
+                .device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("Render Encoder"),
+                });
 
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -247,14 +208,44 @@ impl<'a> State<'a> {
                 occlusion_query_set: None,
                 timestamp_writes: None,
             });
-            render_pass.set_pipeline(&self.render_pipeline);
-            render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            render_pass.draw(0..WEDGE.len() as u32, 0..1);
+            render_pass.set_pipeline(&self.context.render_pipeline);
+            for mesh in &self.meshes {
+                mesh.render(&mut render_pass, 0..1);
+            }
         }
 
-        self.queue.submit(iter::once(encoder.finish()));
+        self.context.queue.submit(iter::once(encoder.finish()));
         output.present();
 
         Ok(())
+    }
+
+    #[allow(unused_variables)]
+    pub fn input(&mut self, event: &WindowEvent) -> bool {
+        false
+    }
+
+    pub fn update(&mut self) {}
+
+    pub fn add_mesh(&mut self, mesh: &[Vertex]) {
+        let mut mesh = Mesh::new(mesh);
+        mesh.create_buffer(&self.device);
+        self.meshes.push(mesh);
+    }
+}
+
+impl<'a> Deref for Renderer<'a> {
+    type Target = Context<'a>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.context
+    }
+}
+
+// Not sure we should be exposing Context as mutable in here
+// TODO: Review
+impl<'a> DerefMut for Renderer<'a> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.context
     }
 }
