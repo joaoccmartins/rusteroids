@@ -1,5 +1,6 @@
 use std::ops::Range;
 
+use wgpu::util::DeviceExt;
 use wgpu::RenderPass;
 
 #[repr(C)]
@@ -39,6 +40,18 @@ impl Mesh {
         if let Some(buffer) = &self.vertex_buffer {
             pass.set_vertex_buffer(0, buffer.slice(..));
             pass.draw(0..self.data.len() as u32, instances);
+        } else {
+            todo!()
         }
+    }
+
+    pub(crate) fn create_buffer(&mut self, device: &wgpu::Device) {
+        self.vertex_buffer = Some(
+            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Vertex Buffer"),
+                contents: bytemuck::cast_slice(&self.data),
+                usage: wgpu::BufferUsages::VERTEX,
+            }),
+        );
     }
 }

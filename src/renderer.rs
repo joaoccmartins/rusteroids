@@ -9,30 +9,6 @@ use winit::{event::*, window::Window};
 use wasm_bindgen::prelude::*;
 
 use crate::mesh::{Mesh, Vertex};
-use wgpu::util::DeviceExt;
-
-const WEDGE: &[Vertex] = &[
-    Vertex {
-        position: [0.0, 1.0],
-        color: [1.0, 1.0, 1.0],
-    },
-    Vertex {
-        position: [0.5, -1.0],
-        color: [1.0, 1.0, 1.0],
-    },
-    Vertex {
-        position: [0.0, -0.5],
-        color: [1.0, 1.0, 1.0],
-    },
-    Vertex {
-        position: [-0.5, -1.0],
-        color: [1.0, 1.0, 1.0],
-    },
-    Vertex {
-        position: [0.0, 1.0],
-        color: [1.0, 1.0, 1.0],
-    },
-];
 
 pub struct Context<'a> {
     pub size: winit::dpi::PhysicalSize<u32>,
@@ -141,7 +117,7 @@ impl<'a> Context<'a> {
             primitive: wgpu::PrimitiveState {
                 topology: wgpu::PrimitiveTopology::LineStrip,
                 strip_index_format: None,
-                front_face: wgpu::FrontFace::Ccw, // 2.
+                front_face: wgpu::FrontFace::Ccw,
                 cull_mode: Some(wgpu::Face::Back),
                 // Setting this to anything other than Fill requires Features::NON_FILL_POLYGON_MODE
                 polygon_mode: wgpu::PolygonMode::Fill,
@@ -158,12 +134,6 @@ impl<'a> Context<'a> {
             },
             multiview: None,
             cache: None,
-        });
-
-        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Vertex Buffer"),
-            contents: bytemuck::cast_slice(WEDGE),
-            usage: wgpu::BufferUsages::VERTEX,
         });
 
         Self {
@@ -256,6 +226,12 @@ impl<'a> Renderer<'a> {
     }
 
     pub fn update(&mut self) {}
+
+    pub fn add_mesh(&mut self, mesh: &[Vertex]) {
+        let mut mesh = Mesh::new(mesh);
+        mesh.create_buffer(&self.device);
+        self.meshes.push(mesh);
+    }
 }
 
 impl<'a> Deref for Renderer<'a> {
@@ -266,6 +242,8 @@ impl<'a> Deref for Renderer<'a> {
     }
 }
 
+// Not sure we should be exposing Context as mutable in here
+// TODO: Review
 impl<'a> DerefMut for Renderer<'a> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.context

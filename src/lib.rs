@@ -1,4 +1,5 @@
-use renderer::{Context, Renderer};
+use mesh::Vertex;
+use renderer::Renderer;
 use winit::{
     event::*,
     event_loop::EventLoop,
@@ -10,6 +11,29 @@ use winit::{
 use wasm_bindgen::prelude::*;
 mod mesh;
 mod renderer;
+
+const WEDGE: &[Vertex] = &[
+    Vertex {
+        position: [0.0, 1.0],
+        color: [1.0, 1.0, 1.0],
+    },
+    Vertex {
+        position: [0.5, -1.0],
+        color: [1.0, 1.0, 1.0],
+    },
+    Vertex {
+        position: [0.0, -0.5],
+        color: [1.0, 1.0, 1.0],
+    },
+    Vertex {
+        position: [-0.5, -1.0],
+        color: [1.0, 1.0, 1.0],
+    },
+    Vertex {
+        position: [0.0, 1.0],
+        color: [1.0, 1.0, 1.0],
+    },
+];
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen(start))]
 pub async fn run() {
@@ -45,6 +69,7 @@ pub async fn run() {
     }
 
     let mut renderer = Renderer::new(&window).await;
+    renderer.add_mesh(WEDGE);
     let mut surface_configured = false;
 
     event_loop
@@ -86,7 +111,10 @@ pub async fn run() {
                                     // Reconfigure the surface if it's lost or outdated
                                     Err(
                                         wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated,
-                                    ) => renderer.resize(renderer.size),
+                                    ) => {
+                                        let size = renderer.size;
+                                        renderer.resize(size)
+                                    }
                                     // The system is out of memory, we should probably quit
                                     Err(wgpu::SurfaceError::OutOfMemory) => {
                                         log::error!("OutOfMemory");
