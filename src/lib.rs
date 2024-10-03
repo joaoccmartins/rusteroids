@@ -14,23 +14,23 @@ mod renderer;
 
 const WEDGE: &[Vertex] = &[
     Vertex {
-        position: [0.0, 1.0],
+        position: [0.0, 20.0],
         color: [1.0, 1.0, 1.0],
     },
     Vertex {
-        position: [0.5, -1.0],
+        position: [10.0, -20.0],
         color: [1.0, 1.0, 1.0],
     },
     Vertex {
-        position: [0.0, -0.5],
+        position: [0.0, -10.0],
         color: [1.0, 1.0, 1.0],
     },
     Vertex {
-        position: [-0.5, -1.0],
+        position: [-10.0, -20.0],
         color: [1.0, 1.0, 1.0],
     },
     Vertex {
-        position: [0.0, 1.0],
+        position: [0.0, 20.0],
         color: [1.0, 1.0, 1.0],
     },
 ];

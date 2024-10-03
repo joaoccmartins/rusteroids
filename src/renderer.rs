@@ -3,6 +3,8 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
+use glam::Mat4;
+use wgpu::util::DeviceExt;
 use winit::{event::*, window::Window};
 
 #[cfg(target_arch = "wasm32")]
@@ -10,13 +12,19 @@ use wasm_bindgen::prelude::*;
 
 use crate::mesh::{Mesh, Vertex};
 
+const GL_TO_WGPU: Mat4 = Mat4::from_cols(
+    glam::vec4(1.0, 0.0, 0.0, 0.0),
+    glam::vec4(0.0, 1.0, 0.0, 0.0),
+    glam::vec4(0.0, 0.0, 0.5, 0.0),
+    glam::vec4(0.0, 0.0, 0.5, 1.0),
+);
+
 pub struct Context<'a> {
     pub size: winit::dpi::PhysicalSize<u32>,
     surface: wgpu::Surface<'a>,
     device: wgpu::Device,
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
-    render_pipeline: wgpu::RenderPipeline,
     // The window must be declared after the surface so
     // it gets dropped after it as the surface contains
     // unsafe references to the window's resources.
@@ -87,55 +95,6 @@ impl<'a> Context<'a> {
             view_formats: vec![],
         };
 
-        let shader = device.create_shader_module(wgpu::include_wgsl!("shader.wgsl"));
-        let render_pipeline_layout =
-            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("Render Pipeline Layout"),
-                bind_group_layouts: &[],
-                push_constant_ranges: &[],
-            });
-
-        let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("Render Pipeline"),
-            layout: Some(&render_pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: "vs_main",
-                buffers: &[Vertex::desc()],
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &shader,
-                entry_point: "fs_main",
-                targets: &[Some(wgpu::ColorTargetState {
-                    format: config.format,
-                    blend: Some(wgpu::BlendState::REPLACE),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-            }),
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::LineStrip,
-                strip_index_format: None,
-                front_face: wgpu::FrontFace::Ccw,
-                cull_mode: Some(wgpu::Face::Back),
-                // Setting this to anything other than Fill requires Features::NON_FILL_POLYGON_MODE
-                polygon_mode: wgpu::PolygonMode::Fill,
-                // Requires Features::DEPTH_CLIP_CONTROL
-                unclipped_depth: false,
-                // Requires Features::CONSERVATIVE_RASTERIZATION
-                conservative: false,
-            },
-            depth_stencil: None,
-            multisample: wgpu::MultisampleState {
-                count: 1,
-                mask: !0,
-                alpha_to_coverage_enabled: false,
-            },
-            multiview: None,
-            cache: None,
-        });
-
         Self {
             surface,
             device,
@@ -143,16 +102,14 @@ impl<'a> Context<'a> {
             config,
             size,
             window,
-            render_pipeline,
         }
     }
 
     pub fn window(&self) -> &Window {
-        &self.window
+        self.window
     }
 
-    pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
-        log::info!("RESIZE {:?}", new_size);
+    fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
         if new_size.width > 0 && new_size.height > 0 {
             self.size = new_size;
             self.config.width = new_size.width;
@@ -164,14 +121,114 @@ impl<'a> Context<'a> {
 
 pub struct Renderer<'a> {
     meshes: Vec<Mesh>,
+    render_pipeline: wgpu::RenderPipeline,
+    camera_buffer: wgpu::Buffer,
+    camera_bind_group: wgpu::BindGroup,
     context: Context<'a>,
 }
 
 impl<'a> Renderer<'a> {
     pub async fn new(window: &'a Window) -> Renderer<'a> {
+        let context = Context::<'a>::new(window).await;
+        let shader = context
+            .device
+            .create_shader_module(wgpu::include_wgsl!("shader.wgsl"));
+        // Create Bind Group
+        let camera_buffer = context
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Camera Buffer"),
+                contents: bytemuck::cast_slice(&Self::wgpu_ortho_camera(
+                    context.size.width,
+                    context.size.height,
+                )),
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            });
+        let camera_bind_group_layout =
+            context
+                .device
+                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    entries: &[wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::VERTEX,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    }],
+                    label: Some("camera_bind_group_layout"),
+                });
+
+        let camera_bind_group = context
+            .device
+            .create_bind_group(&wgpu::BindGroupDescriptor {
+                layout: &camera_bind_group_layout,
+                entries: &[wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: camera_buffer.as_entire_binding(),
+                }],
+                label: Some("camera_bind_group"),
+            });
+
+        let render_pipeline_layout =
+            context
+                .device
+                .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                    label: Some("Render Pipeline Layout"),
+                    bind_group_layouts: &[&camera_bind_group_layout],
+                    push_constant_ranges: &[],
+                });
+        let render_pipeline =
+            context
+                .device
+                .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                    label: Some("Render Pipeline"),
+                    layout: Some(&render_pipeline_layout),
+                    vertex: wgpu::VertexState {
+                        module: &shader,
+                        entry_point: "vs_main",
+                        buffers: &[Vertex::desc()],
+                        compilation_options: wgpu::PipelineCompilationOptions::default(),
+                    },
+                    fragment: Some(wgpu::FragmentState {
+                        module: &shader,
+                        entry_point: "fs_main",
+                        targets: &[Some(wgpu::ColorTargetState {
+                            format: context.config.format,
+                            blend: Some(wgpu::BlendState::REPLACE),
+                            write_mask: wgpu::ColorWrites::ALL,
+                        })],
+                        compilation_options: wgpu::PipelineCompilationOptions::default(),
+                    }),
+                    primitive: wgpu::PrimitiveState {
+                        topology: wgpu::PrimitiveTopology::LineStrip,
+                        strip_index_format: None,
+                        front_face: wgpu::FrontFace::Ccw,
+                        cull_mode: Some(wgpu::Face::Back),
+                        // Setting this to anything other than Fill requires Features::NON_FILL_POLYGON_MODE
+                        polygon_mode: wgpu::PolygonMode::Fill,
+                        // Requires Features::DEPTH_CLIP_CONTROL
+                        unclipped_depth: false,
+                        // Requires Features::CONSERVATIVE_RASTERIZATION
+                        conservative: false,
+                    },
+                    depth_stencil: None,
+                    multisample: wgpu::MultisampleState {
+                        count: 1,
+                        mask: !0,
+                        alpha_to_coverage_enabled: false,
+                    },
+                    multiview: None,
+                    cache: None,
+                });
         Self {
             meshes: vec![],
-            context: Context::<'a>::new(&window).await,
+            render_pipeline,
+            camera_buffer,
+            camera_bind_group,
+            context,
         }
     }
 
@@ -208,12 +265,12 @@ impl<'a> Renderer<'a> {
                 occlusion_query_set: None,
                 timestamp_writes: None,
             });
-            render_pass.set_pipeline(&self.context.render_pipeline);
+            render_pass.set_pipeline(&self.render_pipeline);
+            render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
             for mesh in &self.meshes {
                 mesh.render(&mut render_pass, 0..1);
             }
         }
-
         self.context.queue.submit(iter::once(encoder.finish()));
         output.present();
 
@@ -226,6 +283,32 @@ impl<'a> Renderer<'a> {
     }
 
     pub fn update(&mut self) {}
+
+    pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
+        if new_size.width > 0 && new_size.height > 0 {
+            self.context.resize(new_size);
+            self.queue.write_buffer(
+                &self.camera_buffer,
+                0,
+                bytemuck::cast_slice(&Self::wgpu_ortho_camera(self.size.width, self.size.height)),
+            );
+        }
+    }
+
+    fn wgpu_ortho_camera(width: u32, height: u32) -> [f32; 16] {
+        let (half_width, half_height) = ((width / 2) as f32, (height / 2) as f32);
+        Mat4::orthographic_lh(
+            -half_width,
+            half_width,
+            -half_height,
+            half_height,
+            0.01,
+            1000.0,
+        )
+        .mul_mat4(&GL_TO_WGPU)
+        .transpose()
+        .to_cols_array()
+    }
 
     pub fn add_mesh(&mut self, mesh: &[Vertex]) {
         let mut mesh = Mesh::new(mesh);
