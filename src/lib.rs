@@ -68,7 +68,7 @@ pub async fn run() {
             .expect("Couldn't append canvas to document body.");
     }
 
-    let mut renderer = Renderer::new(&window).await;
+    let mut renderer = Renderer::new(&window, 1).await;
     renderer.add_mesh(WEDGE);
     let mut surface_configured = false;
 

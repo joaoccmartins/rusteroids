@@ -124,16 +124,19 @@ pub struct Renderer<'a> {
     render_pipeline: wgpu::RenderPipeline,
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
+    xform_buffer: wgpu::Buffer,
+    xform_bind_group: wgpu::BindGroup,
     context: Context<'a>,
 }
 
 impl<'a> Renderer<'a> {
-    pub async fn new(window: &'a Window) -> Renderer<'a> {
+    pub async fn new(window: &'a Window, num_meshes: u32) -> Renderer<'a> {
         let context = Context::<'a>::new(window).await;
         let shader = context
             .device
             .create_shader_module(wgpu::include_wgsl!("shader.wgsl"));
-        // Create Bind Group
+        // Create Camera Buffer and Bind Group
+
         let camera_buffer = context
             .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -160,7 +163,6 @@ impl<'a> Renderer<'a> {
                     }],
                     label: Some("camera_bind_group_layout"),
                 });
-
         let camera_bind_group = context
             .device
             .create_bind_group(&wgpu::BindGroupDescriptor {
@@ -172,12 +174,54 @@ impl<'a> Renderer<'a> {
                 label: Some("camera_bind_group"),
             });
 
+        // Create XformsBuffer and Bind Group
+        let xform_buffer = context
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Xform Buffer"),
+                contents: bytemuck::cast_slice(
+                    &(0..num_meshes)
+                        .map(|_| Mat4::IDENTITY.to_cols_array())
+                        .flatten()
+                        .collect::<Vec<f32>>(),
+                ),
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            });
+
+        let xform_bind_group_layout =
+            context
+                .device
+                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    entries: &[wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::VERTEX,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: true,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    }],
+                    label: Some("xform_bind_group_layout"),
+                });
+
+        let xform_bind_group = context
+            .device
+            .create_bind_group(&wgpu::BindGroupDescriptor {
+                layout: &xform_bind_group_layout,
+                entries: &[wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: xform_buffer.as_entire_binding(),
+                }],
+                label: Some("xform_bind_group"),
+            });
+
         let render_pipeline_layout =
             context
                 .device
                 .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                     label: Some("Render Pipeline Layout"),
-                    bind_group_layouts: &[&camera_bind_group_layout],
+                    bind_group_layouts: &[&camera_bind_group_layout, &xform_bind_group_layout],
                     push_constant_ranges: &[],
                 });
         let render_pipeline =
@@ -224,10 +268,12 @@ impl<'a> Renderer<'a> {
                     cache: None,
                 });
         Self {
-            meshes: vec![],
+            meshes: Vec::with_capacity(num_meshes as usize),
             render_pipeline,
             camera_buffer,
             camera_bind_group,
+            xform_buffer,
+            xform_bind_group,
             context,
         }
     }
@@ -265,11 +311,24 @@ impl<'a> Renderer<'a> {
                 occlusion_query_set: None,
                 timestamp_writes: None,
             });
+
             render_pass.set_pipeline(&self.render_pipeline);
             render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
-            for mesh in &self.meshes {
+            // Update model buffers
+            let mut offset: u64 = 0;
+            self.meshes.iter_mut().for_each(|mesh| {
+                self.context.queue.write_buffer(
+                    &self.xform_buffer,
+                    offset,
+                    bytemuck::cast_slice(&mesh.get_xform()),
+                );
+                render_pass.set_bind_group(1, &self.xform_bind_group, &[offset as u32]);
+                offset += size_of::<[f32; 16]>() as u64;
+            });
+            // Render each object
+            self.meshes.iter().for_each(|mesh| {
                 mesh.render(&mut render_pass, 0..1);
-            }
+            });
         }
         self.context.queue.submit(iter::once(encoder.finish()));
         output.present();
