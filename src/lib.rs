@@ -1,3 +1,5 @@
+use glam::IVec2;
+use logic::Rusteroids;
 use mesh::Vertex;
 use renderer::Renderer;
 use winit::{
@@ -9,6 +11,7 @@ use winit::{
 
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
+mod logic;
 mod mesh;
 mod renderer;
 
@@ -67,9 +70,15 @@ pub async fn run() {
             })
             .expect("Couldn't append canvas to document body.");
     }
+    // Game logic
+    let mut game_logic = Rusteroids::new();
+    let (mut is_w_pressed, mut is_a_pressed, mut is_d_pressed) = (false, false, false);
 
+    // Create the Renderer
     let mut renderer = Renderer::new(&window).await;
+    // Add the player meshh
     renderer.add_mesh(WEDGE);
+
     let mut surface_configured = false;
 
     event_loop
@@ -92,9 +101,28 @@ pub async fn run() {
                                     },
                                 ..
                             } => control_flow.exit(),
+                            WindowEvent::KeyboardInput { event, .. } => {
+                                match event.physical_key {
+                                    PhysicalKey::Code(KeyCode::KeyW) => {
+                                        is_w_pressed = matches!(event.state, ElementState::Pressed)
+                                    }
+                                    PhysicalKey::Code(KeyCode::KeyA) => {
+                                        is_a_pressed = matches!(event.state, ElementState::Pressed)
+                                    }
+                                    PhysicalKey::Code(KeyCode::KeyD) => {
+                                        is_d_pressed = matches!(event.state, ElementState::Pressed)
+                                    }
+                                    _ => {}
+                                };
+                                game_logic.update_keys(is_w_pressed, is_a_pressed, is_d_pressed);
+                            }
                             WindowEvent::Resized(physical_size) => {
                                 log::info!("physical_size: {physical_size:?}");
                                 surface_configured = true;
+                                game_logic.set_bounds(IVec2::new(
+                                    physical_size.width as i32,
+                                    physical_size.height as i32,
+                                ));
                                 renderer.resize(*physical_size);
                             }
                             WindowEvent::RedrawRequested => {
@@ -103,8 +131,8 @@ pub async fn run() {
                                 if !surface_configured {
                                     return;
                                 }
-
-                                renderer.update();
+                                game_logic.tick();
+                                renderer.update(&game_logic.get_battleship_model_matrix());
                                 match renderer.render() {
                                     Ok(_) => {}
                                     Err(
