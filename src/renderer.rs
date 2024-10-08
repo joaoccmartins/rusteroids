@@ -250,10 +250,10 @@ impl<'a> Renderer<'a> {
         }
     }
 
-    pub fn update(&mut self) {
+    pub fn update(&mut self, model: &[f32; 16]) {
         let context = &self.context;
         for mesh in &mut self.meshes {
-            mesh.update(context)
+            mesh.update(context, model)
         }
     }
 

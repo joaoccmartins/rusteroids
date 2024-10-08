@@ -1,6 +1,5 @@
 use std::ops::Range;
 
-use glam::{vec3, Mat4, Vec2};
 use wgpu::util::DeviceExt;
 use wgpu::RenderPass;
 
@@ -31,8 +30,6 @@ pub struct Mesh {
     vertex_buffer: Option<wgpu::Buffer>,
     model_buffer: Option<wgpu::Buffer>,
     bind_group: Option<wgpu::BindGroup>,
-    pub pos: Vec2,
-    pub rotation: f32,
 }
 
 impl Mesh {
@@ -42,23 +39,14 @@ impl Mesh {
             vertex_buffer: None,
             model_buffer: None,
             bind_group: None,
-            rotation: 0.0,
-            pos: Vec2::ZERO,
         }
     }
 
-    pub fn update(&mut self, context: &Context) {
-        let angle = self.rotation;
-        let pos = vec3(self.pos.x, self.pos.y, 0.0);
-        // TODO: just for testing
-        self.rotation += 1.0_f32.to_radians();
-        let model_matrix = Mat4::from_translation(pos)
-            .mul_mat4(&Mat4::from_rotation_z(angle))
-            .to_cols_array();
+    pub fn update(&mut self, context: &Context, model_matrix: &[f32; 16]) {
         if let Some(buffer) = &self.model_buffer {
             context
                 .queue
-                .write_buffer(buffer, 0, bytemuck::cast_slice(&model_matrix));
+                .write_buffer(buffer, 0, bytemuck::cast_slice(model_matrix));
         }
     }
 
