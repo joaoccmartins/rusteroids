@@ -14,6 +14,13 @@ impl BBox {
     pub fn with(min: Vec2, max: Vec2) -> Self {
         Self { min, max }
     }
+
+    pub fn is_inside(&self, point: Vec2) -> bool {
+        point.x >= self.min.x
+            && point.x <= self.max.x
+            && point.y >= self.min.y
+            && point.y <= self.max.y
+    }
 }
 
 impl Default for BBox {
@@ -49,12 +56,8 @@ impl Movement {
 
         self.pos += self.vel * elapsed_time;
         self.dir += self.cvel * elapsed_time;
-        // When out of bounds, mirror the position
-        if self.pos.x >= self.bounds.max.x || self.pos.x <= self.bounds.min.x {
-            self.pos.x = -self.pos.x;
-        }
-        if self.pos.y >= self.bounds.max.y || self.pos.y <= self.bounds.min.y {
-            self.pos.y = -self.pos.y;
+        if !self.bounds.is_inside(self.pos) {
+            self.pos = -self.pos;
         }
     }
 }
