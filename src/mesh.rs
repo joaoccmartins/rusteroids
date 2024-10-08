@@ -4,12 +4,7 @@ use glam::{vec3, Mat4, Vec2};
 use wgpu::util::DeviceExt;
 use wgpu::RenderPass;
 
-const GL_TO_WGPU: Mat4 = Mat4::from_cols(
-    glam::vec4(1.0, 0.0, 0.0, 0.0),
-    glam::vec4(0.0, 1.0, 0.0, 0.0),
-    glam::vec4(0.0, 0.0, 0.5, 0.0),
-    glam::vec4(0.0, 0.0, 0.5, 1.0),
-);
+use crate::renderer::{Context, Renderer};
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
@@ -34,8 +29,10 @@ impl Vertex {
 pub struct Mesh {
     data: Vec<Vertex>,
     vertex_buffer: Option<wgpu::Buffer>,
-    pos: Vec2,
-    rotation: f32,
+    model_buffer: Option<wgpu::Buffer>,
+    bind_group: Option<wgpu::BindGroup>,
+    pub pos: Vec2,
+    pub rotation: f32,
 }
 
 impl Mesh {
@@ -43,38 +40,70 @@ impl Mesh {
         Self {
             data: data.to_vec(),
             vertex_buffer: None,
+            model_buffer: None,
+            bind_group: None,
             rotation: 0.0,
             pos: Vec2::ZERO,
         }
     }
 
+    pub fn update(&mut self, context: &Context) {
+        let angle = self.rotation;
+        let pos = vec3(self.pos.x, self.pos.y, 0.0);
+        // TODO: just for testing
+        self.rotation += 1.0_f32.to_radians();
+        let model_matrix = Mat4::from_translation(pos)
+            .mul_mat4(&Mat4::from_rotation_z(angle))
+            .to_cols_array();
+        if let Some(buffer) = &self.model_buffer {
+            context
+                .queue
+                .write_buffer(buffer, 0, bytemuck::cast_slice(&model_matrix));
+        }
+    }
+
     pub fn render(&self, pass: &mut RenderPass<'_>, instances: Range<u32>) {
         if let Some(buffer) = &self.vertex_buffer {
-            pass.set_vertex_buffer(0, buffer.slice(..));
-            pass.draw(0..self.data.len() as u32, instances);
+            if let Some(bind_group) = &self.bind_group {
+                pass.set_bind_group(1, bind_group, &[]);
+                pass.set_vertex_buffer(0, buffer.slice(..));
+                pass.draw(0..self.data.len() as u32, instances);
+            } else {
+                todo!()
+            }
         } else {
             todo!()
         }
     }
 
-    pub fn get_xform(&mut self) -> [f32; 16] {
-        let angle = self.rotation;
-        let pos = vec3(self.pos.x, self.pos.y, 0.0);
-        self.rotation += 1.0_f32.to_radians();
-        Mat4::from_rotation_z(angle)
-            .mul_mat4(&Mat4::from_translation(pos))
-            .mul_mat4(&GL_TO_WGPU)
-            .transpose()
-            .to_cols_array()
-    }
-
-    pub(crate) fn create_buffer(&mut self, device: &wgpu::Device) {
-        self.vertex_buffer = Some(
-            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Vertex Buffer"),
+    pub(crate) fn create_buffer(&mut self, renderer: &Renderer, mesh_index: u32) {
+        self.vertex_buffer = Some(renderer.context.device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some(&format!("vertex{}_buffer", mesh_index)),
                 contents: bytemuck::cast_slice(&self.data),
                 usage: wgpu::BufferUsages::VERTEX,
-            }),
+            },
+        ));
+        self.model_buffer = Some(
+            renderer
+                .context
+                .device
+                .create_buffer(&wgpu::BufferDescriptor {
+                    label: Some(&format!("mesh{}_buffer", mesh_index)),
+                    size: size_of::<[f32; 16]>() as u64,
+                    usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                    mapped_at_creation: false,
+                }),
         );
+        self.bind_group = Some(renderer.context.device.create_bind_group(
+            &wgpu::BindGroupDescriptor {
+                layout: &renderer.mesh_bind_group_layout,
+                entries: &[wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: self.model_buffer.as_ref().unwrap().as_entire_binding(),
+                }],
+                label: Some(&format!("mesh{}_bind_group", mesh_index)),
+            },
+        ));
     }
 }

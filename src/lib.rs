@@ -68,7 +68,7 @@ pub async fn run() {
             .expect("Couldn't append canvas to document body.");
     }
 
-    let mut renderer = Renderer::new(&window, 1).await;
+    let mut renderer = Renderer::new(&window).await;
     renderer.add_mesh(WEDGE);
     let mut surface_configured = false;
 
@@ -98,7 +98,6 @@ pub async fn run() {
                                 renderer.resize(*physical_size);
                             }
                             WindowEvent::RedrawRequested => {
-                                // This tells winit that we want another frame after this one
                                 renderer.window().request_redraw();
 
                                 if !surface_configured {
@@ -108,14 +107,12 @@ pub async fn run() {
                                 renderer.update();
                                 match renderer.render() {
                                     Ok(_) => {}
-                                    // Reconfigure the surface if it's lost or outdated
                                     Err(
                                         wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated,
                                     ) => {
                                         let size = renderer.size;
                                         renderer.resize(size)
                                     }
-                                    // The system is out of memory, we should probably quit
                                     Err(wgpu::SurfaceError::OutOfMemory) => {
                                         log::error!("OutOfMemory");
                                         control_flow.exit();

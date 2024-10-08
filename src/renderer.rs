@@ -22,8 +22,8 @@ const GL_TO_WGPU: Mat4 = Mat4::from_cols(
 pub struct Context<'a> {
     pub size: winit::dpi::PhysicalSize<u32>,
     surface: wgpu::Surface<'a>,
-    device: wgpu::Device,
-    queue: wgpu::Queue,
+    pub(crate) device: wgpu::Device,
+    pub(crate) queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
     // The window must be declared after the surface so
     // it gets dropped after it as the surface contains
@@ -124,13 +124,12 @@ pub struct Renderer<'a> {
     render_pipeline: wgpu::RenderPipeline,
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
-    xform_buffer: wgpu::Buffer,
-    xform_bind_group: wgpu::BindGroup,
-    context: Context<'a>,
+    pub(crate) mesh_bind_group_layout: wgpu::BindGroupLayout,
+    pub(crate) context: Context<'a>,
 }
 
 impl<'a> Renderer<'a> {
-    pub async fn new(window: &'a Window, num_meshes: u32) -> Renderer<'a> {
+    pub async fn new(window: &'a Window) -> Renderer<'a> {
         let context = Context::<'a>::new(window).await;
         let shader = context
             .device
@@ -174,21 +173,9 @@ impl<'a> Renderer<'a> {
                 label: Some("camera_bind_group"),
             });
 
-        // Create XformsBuffer and Bind Group
-        let xform_buffer = context
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Xform Buffer"),
-                contents: bytemuck::cast_slice(
-                    &(0..num_meshes)
-                        .map(|_| Mat4::IDENTITY.to_cols_array())
-                        .flatten()
-                        .collect::<Vec<f32>>(),
-                ),
-                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            });
+        // Create mesh_bind_group_layout
 
-        let xform_bind_group_layout =
+        let mesh_bind_group_layout =
             context
                 .device
                 .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -197,31 +184,20 @@ impl<'a> Renderer<'a> {
                         visibility: wgpu::ShaderStages::VERTEX,
                         ty: wgpu::BindingType::Buffer {
                             ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: true,
+                            has_dynamic_offset: false,
                             min_binding_size: None,
                         },
                         count: None,
                     }],
-                    label: Some("xform_bind_group_layout"),
+                    label: Some("mesh_bind_group_layout"),
                 });
-
-        let xform_bind_group = context
-            .device
-            .create_bind_group(&wgpu::BindGroupDescriptor {
-                layout: &xform_bind_group_layout,
-                entries: &[wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: xform_buffer.as_entire_binding(),
-                }],
-                label: Some("xform_bind_group"),
-            });
 
         let render_pipeline_layout =
             context
                 .device
                 .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                     label: Some("Render Pipeline Layout"),
-                    bind_group_layouts: &[&camera_bind_group_layout, &xform_bind_group_layout],
+                    bind_group_layouts: &[&camera_bind_group_layout, &mesh_bind_group_layout],
                     push_constant_ranges: &[],
                 });
         let render_pipeline =
@@ -251,11 +227,8 @@ impl<'a> Renderer<'a> {
                         strip_index_format: None,
                         front_face: wgpu::FrontFace::Ccw,
                         cull_mode: Some(wgpu::Face::Back),
-                        // Setting this to anything other than Fill requires Features::NON_FILL_POLYGON_MODE
                         polygon_mode: wgpu::PolygonMode::Fill,
-                        // Requires Features::DEPTH_CLIP_CONTROL
                         unclipped_depth: false,
-                        // Requires Features::CONSERVATIVE_RASTERIZATION
                         conservative: false,
                     },
                     depth_stencil: None,
@@ -268,13 +241,19 @@ impl<'a> Renderer<'a> {
                     cache: None,
                 });
         Self {
-            meshes: Vec::with_capacity(num_meshes as usize),
+            meshes: Vec::new(),
             render_pipeline,
             camera_buffer,
             camera_bind_group,
-            xform_buffer,
-            xform_bind_group,
+            mesh_bind_group_layout,
             context,
+        }
+    }
+
+    pub fn update(&mut self) {
+        let context = &self.context;
+        for mesh in &mut self.meshes {
+            mesh.update(context)
         }
     }
 
@@ -314,21 +293,10 @@ impl<'a> Renderer<'a> {
 
             render_pass.set_pipeline(&self.render_pipeline);
             render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
-            // Update model buffers
-            let mut offset: u64 = 0;
             self.meshes.iter_mut().for_each(|mesh| {
-                self.context.queue.write_buffer(
-                    &self.xform_buffer,
-                    offset,
-                    bytemuck::cast_slice(&mesh.get_xform()),
-                );
-                render_pass.set_bind_group(1, &self.xform_bind_group, &[offset as u32]);
-                offset += size_of::<[f32; 16]>() as u64;
-            });
-            // Render each object
-            self.meshes.iter().for_each(|mesh| {
                 mesh.render(&mut render_pass, 0..1);
             });
+            // Render each object
         }
         self.context.queue.submit(iter::once(encoder.finish()));
         output.present();
@@ -340,8 +308,6 @@ impl<'a> Renderer<'a> {
     pub fn input(&mut self, event: &WindowEvent) -> bool {
         false
     }
-
-    pub fn update(&mut self) {}
 
     pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
         if new_size.width > 0 && new_size.height > 0 {
@@ -371,7 +337,7 @@ impl<'a> Renderer<'a> {
 
     pub fn add_mesh(&mut self, mesh: &[Vertex]) {
         let mut mesh = Mesh::new(mesh);
-        mesh.create_buffer(&self.device);
+        mesh.create_buffer(self, self.meshes.len() as u32);
         self.meshes.push(mesh);
     }
 }
