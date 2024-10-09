@@ -1,6 +1,5 @@
 use glam::IVec2;
 use logic::Rusteroids;
-use mesh::Vertex;
 use renderer::Renderer;
 use winit::{
     event::*,
@@ -11,32 +10,11 @@ use winit::{
 
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
+mod camera;
 mod logic;
 mod mesh;
 mod renderer;
-
-const WEDGE: &[Vertex] = &[
-    Vertex {
-        position: [0.0, 20.0],
-        color: [1.0, 1.0, 1.0],
-    },
-    Vertex {
-        position: [10.0, -20.0],
-        color: [1.0, 1.0, 1.0],
-    },
-    Vertex {
-        position: [0.0, -10.0],
-        color: [1.0, 1.0, 1.0],
-    },
-    Vertex {
-        position: [-10.0, -20.0],
-        color: [1.0, 1.0, 1.0],
-    },
-    Vertex {
-        position: [0.0, 20.0],
-        color: [1.0, 1.0, 1.0],
-    },
-];
+mod utils;
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen(start))]
 pub async fn run() {
@@ -77,7 +55,7 @@ pub async fn run() {
     // Create the Renderer
     let mut renderer = Renderer::new(&window).await;
     // Add the player meshh
-    renderer.add_mesh(WEDGE);
+    renderer.add_mesh(utils::WEDGE);
 
     let mut surface_configured = false;
 

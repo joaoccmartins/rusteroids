@@ -3,21 +3,13 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use glam::Mat4;
-use wgpu::util::DeviceExt;
 use winit::{event::*, window::Window};
 
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
+use crate::camera::OrthoCamera;
 use crate::mesh::{Mesh, Vertex};
-
-const GL_TO_WGPU: Mat4 = Mat4::from_cols(
-    glam::vec4(1.0, 0.0, 0.0, 0.0),
-    glam::vec4(0.0, 1.0, 0.0, 0.0),
-    glam::vec4(0.0, 0.0, 0.5, 0.0),
-    glam::vec4(0.0, 0.0, 0.5, 1.0),
-);
 
 pub struct Context<'a> {
     pub size: winit::dpi::PhysicalSize<u32>,
@@ -121,9 +113,8 @@ impl<'a> Context<'a> {
 
 pub struct Renderer<'a> {
     meshes: Vec<Mesh>,
+    camera: OrthoCamera,
     render_pipeline: wgpu::RenderPipeline,
-    camera_buffer: wgpu::Buffer,
-    camera_bind_group: wgpu::BindGroup,
     pub(crate) mesh_bind_group_layout: wgpu::BindGroupLayout,
     pub(crate) context: Context<'a>,
 }
@@ -134,63 +125,16 @@ impl<'a> Renderer<'a> {
         let shader = context
             .device
             .create_shader_module(wgpu::include_wgsl!("shader.wgsl"));
-        // Create Camera Buffer and Bind Group
-
-        let camera_buffer = context
+        // Create camera_bind_group_layout
+        let camera_bind_group_layout = context
             .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Camera Buffer"),
-                contents: bytemuck::cast_slice(&Self::wgpu_ortho_camera(
-                    context.size.width,
-                    context.size.height,
-                )),
-                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            });
-        let camera_bind_group_layout =
-            context
-                .device
-                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                    entries: &[wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: wgpu::ShaderStages::VERTEX,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
-                    }],
-                    label: Some("camera_bind_group_layout"),
-                });
-        let camera_bind_group = context
-            .device
-            .create_bind_group(&wgpu::BindGroupDescriptor {
-                layout: &camera_bind_group_layout,
-                entries: &[wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: camera_buffer.as_entire_binding(),
-                }],
-                label: Some("camera_bind_group"),
-            });
-
+            .create_bind_group_layout(&OrthoCamera::bind_group_layout_desc());
+        let mut camera = OrthoCamera::new(context.size.width, context.size.height);
+        camera.create_buffer(&context.device, &camera_bind_group_layout);
         // Create mesh_bind_group_layout
-
-        let mesh_bind_group_layout =
-            context
-                .device
-                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                    entries: &[wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: wgpu::ShaderStages::VERTEX,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
-                    }],
-                    label: Some("mesh_bind_group_layout"),
-                });
+        let mesh_bind_group_layout = context
+            .device
+            .create_bind_group_layout(&Mesh::bind_group_layout_desc());
 
         let render_pipeline_layout =
             context
@@ -240,11 +184,11 @@ impl<'a> Renderer<'a> {
                     multiview: None,
                     cache: None,
                 });
+
         Self {
             meshes: Vec::new(),
+            camera,
             render_pipeline,
-            camera_buffer,
-            camera_bind_group,
             mesh_bind_group_layout,
             context,
         }
@@ -292,7 +236,7 @@ impl<'a> Renderer<'a> {
             });
 
             render_pass.set_pipeline(&self.render_pipeline);
-            render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
+            self.camera.bind_group(&mut render_pass);
             self.meshes.iter_mut().for_each(|mesh| {
                 mesh.render(&mut render_pass, 0..1);
             });
@@ -312,32 +256,18 @@ impl<'a> Renderer<'a> {
     pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
         if new_size.width > 0 && new_size.height > 0 {
             self.context.resize(new_size);
-            self.queue.write_buffer(
-                &self.camera_buffer,
-                0,
-                bytemuck::cast_slice(&Self::wgpu_ortho_camera(self.size.width, self.size.height)),
-            );
+            self.camera
+                .resize(new_size.width, new_size.height, &self.context.queue);
         }
-    }
-
-    fn wgpu_ortho_camera(width: u32, height: u32) -> [f32; 16] {
-        let (half_width, half_height) = ((width / 2) as f32, (height / 2) as f32);
-        Mat4::orthographic_lh(
-            -half_width,
-            half_width,
-            -half_height,
-            half_height,
-            0.01,
-            1000.0,
-        )
-        .mul_mat4(&GL_TO_WGPU)
-        .transpose()
-        .to_cols_array()
     }
 
     pub fn add_mesh(&mut self, mesh: &[Vertex]) {
         let mut mesh = Mesh::new(mesh);
-        mesh.create_buffer(self, self.meshes.len() as u32);
+        mesh.create_buffer(
+            &self.context.device,
+            &self.mesh_bind_group_layout,
+            self.meshes.len() as u32,
+        );
         self.meshes.push(mesh);
     }
 }
