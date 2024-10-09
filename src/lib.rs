@@ -30,6 +30,7 @@ pub async fn run() {
 
     let event_loop = EventLoop::new().unwrap();
     let window = WindowBuilder::new().build(&event_loop).unwrap();
+    window.set_title("Rusteroids");
 
     #[cfg(target_arch = "wasm32")]
     {
@@ -63,6 +64,7 @@ pub async fn run() {
     )];
     let mut surface_configured = false;
 
+    // TODO: this event loop is too noisy, needs simplification
     event_loop
         .run(move |event, control_flow| {
             match event {
@@ -71,7 +73,6 @@ pub async fn run() {
                     window_id,
                 } if window_id == renderer.window().id() => {
                     if !renderer.input(event) {
-                        // UPDATED!
                         match event {
                             WindowEvent::CloseRequested
                             | WindowEvent::KeyboardInput {
