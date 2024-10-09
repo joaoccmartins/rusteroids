@@ -27,7 +27,7 @@ pub const WEDGE: &[Vertex] = &[
     },
 ];
 
-pub fn uniform_layout_descriptor<'a>(label: &'a str) -> wgpu::BindGroupLayoutDescriptor<'a> {
+pub fn uniform_layout_descriptor(label: &str) -> wgpu::BindGroupLayoutDescriptor {
     wgpu::BindGroupLayoutDescriptor {
         entries: &[wgpu::BindGroupLayoutEntry {
             binding: 0,
@@ -44,7 +44,7 @@ pub fn uniform_layout_descriptor<'a>(label: &'a str) -> wgpu::BindGroupLayoutDes
 }
 
 // Create a buffer to be used as a uniform with a bind group
-pub fn create_buffer<'a, T>(data: T, device: &wgpu::Device, label: &'a str) -> wgpu::Buffer
+pub fn create_buffer<T>(data: T, device: &wgpu::Device, label: &str) -> wgpu::Buffer
 where
     T: bytemuck::Pod + bytemuck::Zeroable,
 {
@@ -52,5 +52,21 @@ where
         label: Some(label),
         usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         contents: bytemuck::bytes_of(&data),
+    })
+}
+
+pub fn create_bind_group(
+    device: &wgpu::Device,
+    layout: &wgpu::BindGroupLayout,
+    buffer: &wgpu::Buffer,
+    label: &str,
+) -> wgpu::BindGroup {
+    device.create_bind_group(&wgpu::BindGroupDescriptor {
+        layout,
+        entries: &[wgpu::BindGroupEntry {
+            binding: 0,
+            resource: buffer.as_entire_binding(),
+        }],
+        label: Some(label),
     })
 }

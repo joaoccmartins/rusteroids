@@ -38,15 +38,10 @@ impl OrthoCamera {
         bind_group_layout: &wgpu::BindGroupLayout,
     ) {
         let buffer = utils::create_buffer(self.proj_matrix(), device, "camera_buffer");
+        let bind_group =
+            utils::create_bind_group(device, bind_group_layout, &buffer, "camera_bind_group");
+        self.bind_group = Some(bind_group);
         self.buffer = Some(buffer);
-        self.bind_group = Some(device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: bind_group_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: self.buffer.as_ref().unwrap().as_entire_binding(),
-            }],
-            label: Some("camera_bind_group"),
-        }));
     }
 
     pub fn update_buffer(&self, queue: &wgpu::Queue) {

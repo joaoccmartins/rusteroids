@@ -73,7 +73,7 @@ impl Mesh {
     pub(crate) fn create_buffer(
         &mut self,
         device: &wgpu::Device,
-        bind_group_layou: &wgpu::BindGroupLayout,
+        bind_group_layout: &wgpu::BindGroupLayout,
         mesh_index: u32,
     ) {
         self.vertex_buffer = Some(
@@ -85,15 +85,10 @@ impl Mesh {
         );
         let model = Mat4::IDENTITY.to_cols_array();
         let label = &format!("mesh{}_buffer", mesh_index);
-        self.model_buffer = Some(utils::create_buffer(model, device, label));
-
-        self.bind_group = Some(device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: bind_group_layou,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: self.model_buffer.as_ref().unwrap().as_entire_binding(),
-            }],
-            label: Some(&format!("mesh{}_bind_group", mesh_index)),
-        }));
+        let buffer = utils::create_buffer(model, device, label);
+        let label = &format!("mesh{}_bind_group", mesh_index);
+        let bind_group = utils::create_bind_group(device, bind_group_layout, &buffer, label);
+        self.model_buffer = Some(buffer);
+        self.bind_group = Some(bind_group);
     }
 }
