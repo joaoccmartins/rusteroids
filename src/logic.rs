@@ -125,7 +125,7 @@ impl Rusteroids {
             Rotating::None => 0.0_f32,
         };
         self.player_movement.acc = match self.player_is_accelerating {
-            true => 100.0,
+            true => 150.0,
             false => 0.0,
         };
         self.player_movement.update(elapsed);

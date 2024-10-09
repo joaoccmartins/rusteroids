@@ -1,6 +1,8 @@
 use glam::Mat4;
 use wgpu::{util::DeviceExt, RenderPass};
 
+use crate::utils;
+
 const GL_TO_WGPU: Mat4 = Mat4::from_cols(
     glam::vec4(1.0, 0.0, 0.0, 0.0),
     glam::vec4(0.0, 1.0, 0.0, 0.0),
@@ -27,19 +29,7 @@ impl OrthoCamera {
     }
 
     pub fn bind_group_layout_desc() -> wgpu::BindGroupLayoutDescriptor<'static> {
-        wgpu::BindGroupLayoutDescriptor {
-            entries: &[wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: wgpu::ShaderStages::VERTEX,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                },
-                count: None,
-            }],
-            label: Some("camera_bind_group_layout"),
-        }
+        utils::uniform_layout_descriptor("camera_bind_group_layout")
     }
 
     pub fn create_buffer(
