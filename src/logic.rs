@@ -46,9 +46,9 @@ struct Movement {
 impl Movement {
     pub fn update(&mut self, elapsed_time: f32) {
         // Calculate new velocity based on acceleration
-        let accelaration =
+        let acceleration =
             self.acc * vec2(-self.dir.to_radians().sin(), self.dir.to_radians().cos());
-        let velocity = self.vel + accelaration * elapsed_time;
+        let velocity = self.vel + acceleration * elapsed_time;
         let velocity_mag = velocity.length();
         if velocity_mag > 0.0 {
             self.vel = velocity.normalize() * velocity_mag.min(MAX_VEL);
