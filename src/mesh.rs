@@ -26,19 +26,19 @@ impl Vertex {
     }
 }
 
-pub struct Mesh {
+pub struct Geometry {
     data: Vec<Vertex>,
     vertex_buffer: Option<wgpu::Buffer>,
     model_uniform: Option<UniformBuffer>,
 }
 
-impl Bindable for Mesh {
+impl Bindable for Geometry {
     fn layout_desc<'a>() -> wgpu::BindGroupLayoutDescriptor<'a> {
         common_layout_descriptor(Some("mat4_layout_descriptor"))
     }
 }
 
-impl Mesh {
+impl Geometry {
     pub fn new(data: &[Vertex]) -> Self {
         Self {
             data: data.to_vec(),

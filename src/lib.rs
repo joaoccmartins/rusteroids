@@ -116,7 +116,7 @@ pub async fn run() {
                                     Err(
                                         wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated,
                                     ) => {
-                                        let size = renderer.size;
+                                        let size = renderer.get_size();
                                         renderer.resize(size)
                                     }
                                     Err(wgpu::SurfaceError::OutOfMemory) => {

@@ -8,17 +8,17 @@ use winit::{event::*, window::Window};
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
-use crate::camera::OrthoCamera;
+use crate::{camera::OrthoCamera, utils::Gadget};
 use crate::{
-    mesh::{Mesh, Vertex},
+    mesh::{Geometry, Vertex},
     utils::UniformBinding,
 };
 
 pub struct Context<'a> {
-    pub size: winit::dpi::PhysicalSize<u32>,
+    size: winit::dpi::PhysicalSize<u32>,
     surface: wgpu::Surface<'a>,
-    pub(crate) device: wgpu::Device,
-    pub(crate) queue: wgpu::Queue,
+    device: wgpu::Device,
+    queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
     // The window must be declared after the surface so
     // it gets dropped after it as the surface contains
@@ -112,12 +112,16 @@ impl<'a> Context<'a> {
             self.surface.configure(&self.device, &self.config);
         }
     }
+
+    pub fn get_size(&self) -> winit::dpi::PhysicalSize<u32> {
+        self.size
+    }
 }
 
 pub struct Renderer<'a> {
-    meshes: Vec<Mesh>,
+    meshes: Vec<Geometry>,
     camera: OrthoCamera,
-    render_pipeline: wgpu::RenderPipeline,
+    gadget: Gadget,
     pub(crate) model_matrix_binding: UniformBinding,
     pub(crate) context: Context<'a>,
 }
@@ -125,70 +129,25 @@ pub struct Renderer<'a> {
 impl<'a> Renderer<'a> {
     pub async fn new(window: &'a Window) -> Renderer<'a> {
         let context = Context::<'a>::new(window).await;
-        let shader = context
-            .device
-            .create_shader_module(wgpu::include_wgsl!("shader.wgsl"));
         // Create camera_bind_group_layout
         let camera_binding = UniformBinding::new::<OrthoCamera>(&context.device);
         let mut camera = OrthoCamera::new(context.size.width, context.size.height);
         camera.setup(&context.device, &camera_binding);
 
         // Create mesh_bind_group_layout
-        let model_matrix_binding = UniformBinding::new::<Mesh>(&context.device);
-
-        let render_pipeline_layout =
-            context
-                .device
-                .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                    label: Some("Render Pipeline Layout"),
-                    bind_group_layouts: &[&camera_binding, &model_matrix_binding],
-                    push_constant_ranges: &[],
-                });
-        let render_pipeline =
-            context
-                .device
-                .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                    label: Some("Render Pipeline"),
-                    layout: Some(&render_pipeline_layout),
-                    vertex: wgpu::VertexState {
-                        module: &shader,
-                        entry_point: "vs_main",
-                        buffers: &[Vertex::desc()],
-                        compilation_options: wgpu::PipelineCompilationOptions::default(),
-                    },
-                    fragment: Some(wgpu::FragmentState {
-                        module: &shader,
-                        entry_point: "fs_main",
-                        targets: &[Some(wgpu::ColorTargetState {
-                            format: context.config.format,
-                            blend: Some(wgpu::BlendState::REPLACE),
-                            write_mask: wgpu::ColorWrites::ALL,
-                        })],
-                        compilation_options: wgpu::PipelineCompilationOptions::default(),
-                    }),
-                    primitive: wgpu::PrimitiveState {
-                        topology: wgpu::PrimitiveTopology::LineStrip,
-                        strip_index_format: None,
-                        front_face: wgpu::FrontFace::Ccw,
-                        cull_mode: Some(wgpu::Face::Back),
-                        polygon_mode: wgpu::PolygonMode::Fill,
-                        unclipped_depth: false,
-                        conservative: false,
-                    },
-                    depth_stencil: None,
-                    multisample: wgpu::MultisampleState {
-                        count: 1,
-                        mask: !0,
-                        alpha_to_coverage_enabled: false,
-                    },
-                    multiview: None,
-                    cache: None,
-                });
+        let model_matrix_binding = UniformBinding::new::<Geometry>(&context.device);
+        let gadget = Gadget::from(
+            wgpu::include_wgsl!("shader.wgsl"),
+            Vertex::desc(),
+            &[&camera_binding, &model_matrix_binding],
+            &context.device,
+            context.config.format,
+        );
 
         Self {
             meshes: Vec::new(),
             camera,
-            render_pipeline,
+            gadget,
             model_matrix_binding,
             context,
         }
@@ -235,12 +194,11 @@ impl<'a> Renderer<'a> {
                 timestamp_writes: None,
             });
 
-            render_pass.set_pipeline(&self.render_pipeline);
+            render_pass.set_pipeline(&self.gadget);
             self.camera.bind_group(&mut render_pass);
             self.meshes.iter_mut().for_each(|mesh| {
                 mesh.render(&mut render_pass, 0..1);
             });
-            // Render each object
         }
         self.context.queue.submit(iter::once(encoder.finish()));
         output.present();
@@ -262,7 +220,7 @@ impl<'a> Renderer<'a> {
     }
 
     pub fn add_mesh(&mut self, mesh: &[Vertex]) {
-        let mut mesh = Mesh::new(mesh);
+        let mut mesh = Geometry::new(mesh);
         mesh.setup(
             &self.context.device,
             &self.model_matrix_binding,
