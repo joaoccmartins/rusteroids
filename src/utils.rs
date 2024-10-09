@@ -1,6 +1,6 @@
 use std::ops::Deref;
 
-use wgpu::{util::DeviceExt, ShaderModuleDescriptor};
+use wgpu::util::DeviceExt;
 
 use crate::mesh::Vertex;
 
@@ -139,75 +139,4 @@ impl Deref for UniformBinding {
 
 pub trait Bindable {
     fn layout_desc<'a>() -> wgpu::BindGroupLayoutDescriptor<'a>;
-}
-
-pub struct Gadget {
-    pipeline: wgpu::RenderPipeline,
-}
-
-impl Gadget {
-    pub fn from(
-        shader_src: ShaderModuleDescriptor,
-        vertex_layout: wgpu::VertexBufferLayout,
-        uniforms: &[&wgpu::BindGroupLayout],
-        device: &wgpu::Device,
-        format: wgpu::TextureFormat,
-    ) -> Self {
-        let shader = device.create_shader_module(shader_src);
-
-        let render_pipeline_layout =
-            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("Render Pipeline Layout"),
-                bind_group_layouts: uniforms,
-                push_constant_ranges: &[],
-            });
-
-        Self {
-            pipeline: device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                label: Some("Render Pipeline"),
-                layout: Some(&render_pipeline_layout),
-                vertex: wgpu::VertexState {
-                    module: &shader,
-                    entry_point: "vs_main",
-                    buffers: &[vertex_layout],
-                    compilation_options: wgpu::PipelineCompilationOptions::default(),
-                },
-                fragment: Some(wgpu::FragmentState {
-                    module: &shader,
-                    entry_point: "fs_main",
-                    targets: &[Some(wgpu::ColorTargetState {
-                        format,
-                        blend: Some(wgpu::BlendState::REPLACE),
-                        write_mask: wgpu::ColorWrites::ALL,
-                    })],
-                    compilation_options: wgpu::PipelineCompilationOptions::default(),
-                }),
-                primitive: wgpu::PrimitiveState {
-                    topology: wgpu::PrimitiveTopology::LineStrip,
-                    strip_index_format: None,
-                    front_face: wgpu::FrontFace::Ccw,
-                    cull_mode: Some(wgpu::Face::Back),
-                    polygon_mode: wgpu::PolygonMode::Fill,
-                    unclipped_depth: false,
-                    conservative: false,
-                },
-                depth_stencil: None,
-                multisample: wgpu::MultisampleState {
-                    count: 1,
-                    mask: !0,
-                    alpha_to_coverage_enabled: false,
-                },
-                multiview: None,
-                cache: None,
-            }),
-        }
-    }
-}
-
-impl Deref for Gadget {
-    type Target = wgpu::RenderPipeline;
-
-    fn deref(&self) -> &Self::Target {
-        &self.pipeline
-    }
 }

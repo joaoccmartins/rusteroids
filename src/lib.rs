@@ -1,5 +1,6 @@
 use glam::IVec2;
 use logic::Rusteroids;
+use mesh::Geometry;
 use renderer::Renderer;
 use winit::{
     event::*,
@@ -51,12 +52,15 @@ pub async fn run() {
     // Game logic
     let mut game_logic = Rusteroids::new();
     let (mut is_w_pressed, mut is_a_pressed, mut is_d_pressed) = (false, false, false);
-
     // Create the Renderer
     let mut renderer = Renderer::new(&window).await;
-    // Add the player meshh
-    renderer.add_mesh(utils::WEDGE);
-
+    // Create Meshes
+    let mut meshes = vec![Geometry::new(
+        utils::WEDGE,
+        renderer.get_device(),
+        renderer.get_uniform_binding("model"),
+        0,
+    )];
     let mut surface_configured = false;
 
     event_loop
@@ -110,8 +114,11 @@ pub async fn run() {
                                     return;
                                 }
                                 game_logic.tick();
-                                renderer.update(&game_logic.get_battleship_model_matrix());
-                                match renderer.render() {
+                                meshes.get_mut(0).unwrap().update_buffer(
+                                    renderer.get_queue(),
+                                    &game_logic.get_battleship_model_matrix(),
+                                );
+                                match renderer.render(&meshes) {
                                     Ok(_) => {}
                                     Err(
                                         wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated,

@@ -1,14 +1,12 @@
-use std::{
-    iter,
-    ops::{Deref, DerefMut},
-};
+use std::{iter, ops::Deref};
 
+use std::collections::HashMap;
 use winit::{event::*, window::Window};
 
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
-use crate::{camera::OrthoCamera, utils::Gadget};
+use crate::camera::OrthoCamera;
 use crate::{
     mesh::{Geometry, Vertex},
     utils::UniformBinding,
@@ -116,19 +114,102 @@ impl<'a> Context<'a> {
     pub fn get_size(&self) -> winit::dpi::PhysicalSize<u32> {
         self.size
     }
+
+    pub fn get_queue(&self) -> &wgpu::Queue {
+        &self.queue
+    }
+
+    pub fn get_device(&self) -> &wgpu::Device {
+        &self.device
+    }
 }
 
+/// A gadget to bind a Shader, VertexBuffer and Bindgroups into a RenderPipeline
+pub struct Gadget {
+    pipeline: wgpu::RenderPipeline,
+}
+
+impl Gadget {
+    pub fn from(
+        shader_src: wgpu::ShaderModuleDescriptor,
+        vertex_layout: wgpu::VertexBufferLayout,
+        uniforms: &[&wgpu::BindGroupLayout],
+        device: &wgpu::Device,
+        format: wgpu::TextureFormat,
+    ) -> Self {
+        let shader = device.create_shader_module(shader_src);
+
+        let render_pipeline_layout =
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("Render Pipeline Layout"),
+                bind_group_layouts: uniforms,
+                push_constant_ranges: &[],
+            });
+
+        Self {
+            pipeline: device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                label: Some("Render Pipeline"),
+                layout: Some(&render_pipeline_layout),
+                vertex: wgpu::VertexState {
+                    module: &shader,
+                    entry_point: "vs_main",
+                    buffers: &[vertex_layout],
+                    compilation_options: wgpu::PipelineCompilationOptions::default(),
+                },
+                fragment: Some(wgpu::FragmentState {
+                    module: &shader,
+                    entry_point: "fs_main",
+                    targets: &[Some(wgpu::ColorTargetState {
+                        format,
+                        blend: Some(wgpu::BlendState::REPLACE),
+                        write_mask: wgpu::ColorWrites::ALL,
+                    })],
+                    compilation_options: wgpu::PipelineCompilationOptions::default(),
+                }),
+                primitive: wgpu::PrimitiveState {
+                    topology: wgpu::PrimitiveTopology::LineStrip,
+                    strip_index_format: None,
+                    front_face: wgpu::FrontFace::Ccw,
+                    cull_mode: Some(wgpu::Face::Back),
+                    polygon_mode: wgpu::PolygonMode::Fill,
+                    unclipped_depth: false,
+                    conservative: false,
+                },
+                depth_stencil: None,
+                multisample: wgpu::MultisampleState {
+                    count: 1,
+                    mask: !0,
+                    alpha_to_coverage_enabled: false,
+                },
+                multiview: None,
+                cache: None,
+            }),
+        }
+    }
+}
+
+impl Deref for Gadget {
+    type Target = wgpu::RenderPipeline;
+
+    fn deref(&self) -> &Self::Target {
+        &self.pipeline
+    }
+}
+
+/// A renderer struct, binding Gadgets to multiple Uniform Bindings,
+/// enabling the rendering of Geometries
 pub struct Renderer<'a> {
-    meshes: Vec<Geometry>,
     camera: OrthoCamera,
     gadget: Gadget,
-    pub(crate) model_matrix_binding: UniformBinding,
-    pub(crate) context: Context<'a>,
+    uniforms: HashMap<&'a str, UniformBinding>,
+    context: Context<'a>,
 }
 
 impl<'a> Renderer<'a> {
     pub async fn new(window: &'a Window) -> Renderer<'a> {
         let context = Context::<'a>::new(window).await;
+        let mut uniforms: HashMap<&'a str, UniformBinding> = HashMap::new();
+
         // Create camera_bind_group_layout
         let camera_binding = UniformBinding::new::<OrthoCamera>(&context.device);
         let mut camera = OrthoCamera::new(context.size.width, context.size.height);
@@ -144,23 +225,26 @@ impl<'a> Renderer<'a> {
             context.config.format,
         );
 
+        uniforms.insert("camera", camera_binding);
+        uniforms.insert("model", model_matrix_binding);
+
         Self {
-            meshes: Vec::new(),
             camera,
             gadget,
-            model_matrix_binding,
+            uniforms,
             context,
         }
     }
 
-    pub fn update(&mut self, model: &[f32; 16]) {
-        let context = &self.context;
-        for mesh in &mut self.meshes {
-            mesh.update_buffer(&context.queue, model)
+    pub fn get_uniform_binding(&self, uniform_name: &str) -> &UniformBinding {
+        if let Some(uniform_binding) = self.uniforms.get(uniform_name) {
+            uniform_binding
+        } else {
+            unreachable!()
         }
     }
 
-    pub fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
+    pub fn render(&mut self, meshes: &[Geometry]) -> Result<(), wgpu::SurfaceError> {
         let output = self.context.surface.get_current_texture()?;
         let view = output
             .texture
@@ -196,7 +280,7 @@ impl<'a> Renderer<'a> {
 
             render_pass.set_pipeline(&self.gadget);
             self.camera.bind_group(&mut render_pass);
-            self.meshes.iter_mut().for_each(|mesh| {
+            meshes.iter().for_each(|mesh| {
                 mesh.render(&mut render_pass, 0..1);
             });
         }
@@ -218,16 +302,6 @@ impl<'a> Renderer<'a> {
                 .resize(new_size.width, new_size.height, &self.context.queue);
         }
     }
-
-    pub fn add_mesh(&mut self, mesh: &[Vertex]) {
-        let mut mesh = Geometry::new(mesh);
-        mesh.setup(
-            &self.context.device,
-            &self.model_matrix_binding,
-            self.meshes.len() as u32,
-        );
-        self.meshes.push(mesh);
-    }
 }
 
 impl<'a> Deref for Renderer<'a> {
@@ -235,13 +309,5 @@ impl<'a> Deref for Renderer<'a> {
 
     fn deref(&self) -> &Self::Target {
         &self.context
-    }
-}
-
-// Not sure we should be exposing Context as mutable in here
-// TODO: Review
-impl<'a> DerefMut for Renderer<'a> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.context
     }
 }
