@@ -42,6 +42,22 @@ impl Mesh {
         }
     }
 
+    pub fn bind_group_layout_desc() -> wgpu::BindGroupLayoutDescriptor<'static> {
+        wgpu::BindGroupLayoutDescriptor {
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::VERTEX,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            }],
+            label: Some("mesh_bind_group_layout"),
+        }
+    }
+
     pub fn update(&mut self, context: &Context, model_matrix: &[f32; 16]) {
         if let Some(buffer) = &self.model_buffer {
             context
