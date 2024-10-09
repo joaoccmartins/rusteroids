@@ -1,6 +1,6 @@
 use core::f32;
-use std::time::Instant;
 
+use chrono::{DateTime, Local};
 use glam::{vec2, vec3, IVec2, Mat4, Vec2};
 
 const MAX_VEL: f32 = 200.0;
@@ -63,27 +63,28 @@ impl Movement {
 }
 
 struct Timer {
-    last: Instant,
-    now: Instant,
+    last: DateTime<Local>,
+    now: DateTime<Local>,
 }
 
 impl Timer {
     pub fn tick(&mut self) -> &Timer {
         self.last = self.now;
-        self.now = std::time::Instant::now();
+        self.now = chrono::offset::Local::now();
         self
     }
 
     pub fn elapsed(&self) -> f32 {
-        (self.now - self.last).as_secs_f32()
+        let delta = self.now - self.last;
+        delta.num_seconds() as f32 + delta.num_milliseconds() as f32 / 1000.0
     }
 }
 
 impl Default for Timer {
     fn default() -> Self {
         Self {
-            last: std::time::Instant::now(),
-            now: std::time::Instant::now(),
+            last: chrono::offset::Local::now(),
+            now: chrono::offset::Local::now(),
         }
     }
 }
