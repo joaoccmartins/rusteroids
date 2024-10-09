@@ -1,3 +1,5 @@
+use std::ops::Deref;
+
 use wgpu::util::DeviceExt;
 
 use crate::mesh::Vertex;
@@ -27,11 +29,12 @@ pub const WEDGE: &[Vertex] = &[
     },
 ];
 
-pub fn uniform_layout_descriptor(label: &str) -> wgpu::BindGroupLayoutDescriptor {
+/// A common uniform layout descriptor, visible in both Vertex and Fragment
+pub fn common_layout_descriptor(label: Option<&str>) -> wgpu::BindGroupLayoutDescriptor {
     wgpu::BindGroupLayoutDescriptor {
         entries: &[wgpu::BindGroupLayoutEntry {
             binding: 0,
-            visibility: wgpu::ShaderStages::VERTEX,
+            visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
             ty: wgpu::BindingType::Buffer {
                 ty: wgpu::BufferBindingType::Uniform,
                 has_dynamic_offset: false,
@@ -39,19 +42,19 @@ pub fn uniform_layout_descriptor(label: &str) -> wgpu::BindGroupLayoutDescriptor
             },
             count: None,
         }],
-        label: Some(label),
+        label,
     }
 }
 
 // Create a buffer to be used as a uniform with a bind group
-pub fn create_buffer<T>(data: T, device: &wgpu::Device, label: &str) -> wgpu::Buffer
+pub fn create_buffer<T>(data: &T, device: &wgpu::Device, label: &str) -> wgpu::Buffer
 where
     T: bytemuck::Pod + bytemuck::Zeroable,
 {
     device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some(label),
         usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        contents: bytemuck::bytes_of(&data),
+        contents: bytemuck::bytes_of(data),
     })
 }
 
@@ -69,4 +72,71 @@ pub fn create_bind_group(
         }],
         label: Some(label),
     })
+}
+
+/// A struct to manage both a uniform buffer and its bind group
+pub struct UniformBuffer {
+    buffer: wgpu::Buffer,
+    bind_group: wgpu::BindGroup,
+}
+
+impl UniformBuffer {
+    /// Creates a new UniformBuffer struct. Device and Layout already needs to exist
+    pub fn new<T>(
+        data: &T,
+        device: &wgpu::Device,
+        layout: &wgpu::BindGroupLayout,
+        label_prefix: &str,
+    ) -> Self
+    where
+        T: bytemuck::Pod + bytemuck::Zeroable,
+    {
+        let buffer = create_buffer(data, device, &format!("{}_buffer", label_prefix));
+        let bind_group = create_bind_group(
+            device,
+            layout,
+            &buffer,
+            &format!("{}_bind_group", label_prefix),
+        );
+        Self { buffer, bind_group }
+    }
+
+    pub fn update_buffer<T>(&self, data: &T, queue: &wgpu::Queue)
+    where
+        T: bytemuck::Pod + bytemuck::Zeroable,
+    {
+        queue.write_buffer(&self.buffer, 0, bytemuck::bytes_of(data));
+    }
+
+    pub fn bind(&self, pass: &mut wgpu::RenderPass, group_index: u32) {
+        pass.set_bind_group(group_index, &self.bind_group, &[]);
+    }
+}
+
+/// Struct to manage the binding of Uniforms to a RenderPipeline according to Bindable type
+pub struct UniformBinding {
+    layout: wgpu::BindGroupLayout,
+}
+
+impl UniformBinding {
+    pub fn new<T>(device: &wgpu::Device) -> Self
+    where
+        T: Bindable,
+    {
+        Self {
+            layout: device.create_bind_group_layout(&T::layout_desc()),
+        }
+    }
+}
+
+impl Deref for UniformBinding {
+    type Target = wgpu::BindGroupLayout;
+
+    fn deref(&self) -> &Self::Target {
+        &self.layout
+    }
+}
+
+pub trait Bindable {
+    fn layout_desc<'a>() -> wgpu::BindGroupLayoutDescriptor<'a>;
 }

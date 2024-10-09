@@ -9,7 +9,10 @@ use winit::{event::*, window::Window};
 use wasm_bindgen::prelude::*;
 
 use crate::camera::OrthoCamera;
-use crate::mesh::{Mesh, Vertex};
+use crate::{
+    mesh::{Mesh, Vertex},
+    utils::UniformBinding,
+};
 
 pub struct Context<'a> {
     pub size: winit::dpi::PhysicalSize<u32>,
@@ -115,7 +118,7 @@ pub struct Renderer<'a> {
     meshes: Vec<Mesh>,
     camera: OrthoCamera,
     render_pipeline: wgpu::RenderPipeline,
-    pub(crate) mesh_bind_group_layout: wgpu::BindGroupLayout,
+    pub(crate) model_matrix_binding: UniformBinding,
     pub(crate) context: Context<'a>,
 }
 
@@ -126,22 +129,19 @@ impl<'a> Renderer<'a> {
             .device
             .create_shader_module(wgpu::include_wgsl!("shader.wgsl"));
         // Create camera_bind_group_layout
-        let camera_bind_group_layout = context
-            .device
-            .create_bind_group_layout(&OrthoCamera::bind_group_layout_desc());
+        let camera_binding = UniformBinding::new::<OrthoCamera>(&context.device);
         let mut camera = OrthoCamera::new(context.size.width, context.size.height);
-        camera.create_buffer(&context.device, &camera_bind_group_layout);
+        camera.setup(&context.device, &camera_binding);
+
         // Create mesh_bind_group_layout
-        let mesh_bind_group_layout = context
-            .device
-            .create_bind_group_layout(&Mesh::bind_group_layout_desc());
+        let model_matrix_binding = UniformBinding::new::<Mesh>(&context.device);
 
         let render_pipeline_layout =
             context
                 .device
                 .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                     label: Some("Render Pipeline Layout"),
-                    bind_group_layouts: &[&camera_bind_group_layout, &mesh_bind_group_layout],
+                    bind_group_layouts: &[&camera_binding, &model_matrix_binding],
                     push_constant_ranges: &[],
                 });
         let render_pipeline =
@@ -189,7 +189,7 @@ impl<'a> Renderer<'a> {
             meshes: Vec::new(),
             camera,
             render_pipeline,
-            mesh_bind_group_layout,
+            model_matrix_binding,
             context,
         }
     }
@@ -197,7 +197,7 @@ impl<'a> Renderer<'a> {
     pub fn update(&mut self, model: &[f32; 16]) {
         let context = &self.context;
         for mesh in &mut self.meshes {
-            mesh.update(context, model)
+            mesh.update_buffer(&context.queue, model)
         }
     }
 
@@ -263,9 +263,9 @@ impl<'a> Renderer<'a> {
 
     pub fn add_mesh(&mut self, mesh: &[Vertex]) {
         let mut mesh = Mesh::new(mesh);
-        mesh.create_buffer(
+        mesh.setup(
             &self.context.device,
-            &self.mesh_bind_group_layout,
+            &self.model_matrix_binding,
             self.meshes.len() as u32,
         );
         self.meshes.push(mesh);

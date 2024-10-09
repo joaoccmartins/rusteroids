@@ -2,10 +2,9 @@ use std::ops::Range;
 
 use glam::Mat4;
 use wgpu::util::DeviceExt;
-use wgpu::RenderPass;
+use wgpu::{Queue, RenderPass};
 
-use crate::renderer::Context;
-use crate::utils;
+use crate::utils::{common_layout_descriptor, Bindable, UniformBuffer};
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
@@ -30,8 +29,13 @@ impl Vertex {
 pub struct Mesh {
     data: Vec<Vertex>,
     vertex_buffer: Option<wgpu::Buffer>,
-    model_buffer: Option<wgpu::Buffer>,
-    bind_group: Option<wgpu::BindGroup>,
+    model_uniform: Option<UniformBuffer>,
+}
+
+impl Bindable for Mesh {
+    fn layout_desc<'a>() -> wgpu::BindGroupLayoutDescriptor<'a> {
+        common_layout_descriptor(Some("mat4_layout_descriptor"))
+    }
 }
 
 impl Mesh {
@@ -39,28 +43,21 @@ impl Mesh {
         Self {
             data: data.to_vec(),
             vertex_buffer: None,
-            model_buffer: None,
-            bind_group: None,
+            model_uniform: None,
         }
     }
 
-    pub fn bind_group_layout_desc() -> wgpu::BindGroupLayoutDescriptor<'static> {
-        utils::uniform_layout_descriptor("mesh_bind_group_layout")
-    }
-
-    pub fn update(&mut self, context: &Context, model_matrix: &[f32; 16]) {
-        if let Some(buffer) = &self.model_buffer {
-            context
-                .queue
-                .write_buffer(buffer, 0, bytemuck::cast_slice(model_matrix));
+    pub fn update_buffer(&mut self, queue: &Queue, model_matrix: &[f32; 16]) {
+        if let Some(uniform) = &self.model_uniform {
+            uniform.update_buffer(model_matrix, queue);
         }
     }
 
     pub fn render(&self, pass: &mut RenderPass<'_>, instances: Range<u32>) {
         if let Some(buffer) = &self.vertex_buffer {
-            if let Some(bind_group) = &self.bind_group {
-                pass.set_bind_group(1, bind_group, &[]);
+            if let Some(uniform) = &self.model_uniform {
                 pass.set_vertex_buffer(0, buffer.slice(..));
+                uniform.bind(pass, 1);
                 pass.draw(0..self.data.len() as u32, instances);
             } else {
                 todo!()
@@ -70,7 +67,7 @@ impl Mesh {
         }
     }
 
-    pub(crate) fn create_buffer(
+    pub(crate) fn setup(
         &mut self,
         device: &wgpu::Device,
         bind_group_layout: &wgpu::BindGroupLayout,
@@ -84,11 +81,11 @@ impl Mesh {
             }),
         );
         let model = Mat4::IDENTITY.to_cols_array();
-        let label = &format!("mesh{}_buffer", mesh_index);
-        let buffer = utils::create_buffer(model, device, label);
-        let label = &format!("mesh{}_bind_group", mesh_index);
-        let bind_group = utils::create_bind_group(device, bind_group_layout, &buffer, label);
-        self.model_buffer = Some(buffer);
-        self.bind_group = Some(bind_group);
+        self.model_uniform = Some(UniformBuffer::new(
+            &model,
+            device,
+            bind_group_layout,
+            &format!("mesh{}", mesh_index),
+        ));
     }
 }

@@ -1,7 +1,7 @@
 use glam::Mat4;
 use wgpu::RenderPass;
 
-use crate::utils;
+use crate::utils::{common_layout_descriptor, Bindable, UniformBuffer};
 
 const GL_TO_WGPU: Mat4 = Mat4::from_cols(
     glam::vec4(1.0, 0.0, 0.0, 0.0),
@@ -14,8 +14,13 @@ const GL_TO_WGPU: Mat4 = Mat4::from_cols(
 pub struct OrthoCamera {
     width: u32,
     height: u32,
-    buffer: Option<wgpu::Buffer>,
-    bind_group: Option<wgpu::BindGroup>,
+    uniform: Option<UniformBuffer>,
+}
+
+impl Bindable for OrthoCamera {
+    fn layout_desc<'a>() -> wgpu::BindGroupLayoutDescriptor<'a> {
+        common_layout_descriptor(Some("mat4_layout_descriptor"))
+    }
 }
 
 impl OrthoCamera {
@@ -23,32 +28,22 @@ impl OrthoCamera {
         Self {
             width,
             height,
-            buffer: None,
-            bind_group: None,
+            uniform: None,
         }
     }
 
-    pub fn bind_group_layout_desc() -> wgpu::BindGroupLayoutDescriptor<'static> {
-        utils::uniform_layout_descriptor("camera_bind_group_layout")
-    }
-
-    pub fn create_buffer(
-        &mut self,
-        device: &wgpu::Device,
-        bind_group_layout: &wgpu::BindGroupLayout,
-    ) {
-        let buffer = utils::create_buffer(self.proj_matrix(), device, "camera_buffer");
-        let bind_group =
-            utils::create_bind_group(device, bind_group_layout, &buffer, "camera_bind_group");
-        self.bind_group = Some(bind_group);
-        self.buffer = Some(buffer);
+    pub fn setup(&mut self, device: &wgpu::Device, bind_group_layout: &wgpu::BindGroupLayout) {
+        self.uniform = Some(UniformBuffer::new(
+            &self.proj_matrix(),
+            device,
+            bind_group_layout,
+            "camera",
+        ))
     }
 
     pub fn update_buffer(&self, queue: &wgpu::Queue) {
-        if let Some(buffer) = &self.buffer {
-            queue.write_buffer(buffer, 0, bytemuck::cast_slice(&self.proj_matrix()));
-        } else {
-            unreachable!()
+        if let Some(uniform) = &self.uniform {
+            uniform.update_buffer(&self.proj_matrix(), queue);
         }
     }
 
@@ -76,8 +71,8 @@ impl OrthoCamera {
     }
 
     pub fn bind_group(&self, pass: &mut RenderPass<'_>) {
-        if let Some(bind_group) = &self.bind_group {
-            pass.set_bind_group(0, bind_group, &[]);
+        if let Some(uniform) = &self.uniform {
+            uniform.bind(pass, 0);
         }
     }
 }
