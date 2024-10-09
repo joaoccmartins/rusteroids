@@ -1,8 +1,6 @@
 use glam::Mat4;
 use wgpu::{util::DeviceExt, RenderPass};
 
-use crate::renderer::Renderer;
-
 const GL_TO_WGPU: Mat4 = Mat4::from_cols(
     glam::vec4(1.0, 0.0, 0.0, 0.0),
     glam::vec4(0.0, 1.0, 0.0, 0.0),
@@ -44,35 +42,33 @@ impl OrthoCamera {
         }
     }
 
-    pub fn create_buffer(&mut self, renderer: &Renderer) {
-        self.buffer = Some(renderer.context.device.create_buffer_init(
-            (&wgpu::util::BufferInitDescriptor {
+    pub fn create_buffer(
+        &mut self,
+        device: &wgpu::Device,
+        bind_group_layout: &wgpu::BindGroupLayout,
+    ) {
+        self.buffer = Some(
+            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("Camera Buffer"),
                 contents: bytemuck::cast_slice(&self.proj_matrix()),
                 usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             }),
-        ));
-        self.bind_group = Some(renderer.context.device.create_bind_group(
-            &wgpu::BindGroupDescriptor {
-                layout: &renderer.mesh_bind_group_layout,
-                entries: &[wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: self.buffer.as_ref().unwrap().as_entire_binding(),
-                }],
-                label: Some("camera_bind_group"),
-            },
-        ));
+        );
+        self.bind_group = Some(device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: self.buffer.as_ref().unwrap().as_entire_binding(),
+            }],
+            label: Some("camera_bind_group"),
+        }));
     }
 
-    pub fn update_buffer(&self, renderer: &Renderer) {
+    pub fn update_buffer(&self, queue: &wgpu::Queue) {
         if let Some(buffer) = &self.buffer {
-            renderer.context.queue.write_buffer(
-                &buffer,
-                0,
-                bytemuck::cast_slice(&self.proj_matrix()),
-            );
+            queue.write_buffer(buffer, 0, bytemuck::cast_slice(&self.proj_matrix()));
         } else {
-            todo!()
+            unreachable!()
         }
     }
 
@@ -91,17 +87,15 @@ impl OrthoCamera {
         .to_cols_array()
     }
 
-    pub fn resize(&mut self, width: u32, height: u32) -> bool {
+    pub fn resize(&mut self, width: u32, height: u32, queue: &wgpu::Queue) {
         if self.width != width || self.height != height {
             self.width = width;
             self.height = height;
-            true
-        } else {
-            false
+            self.update_buffer(queue);
         }
     }
 
-    pub fn bind(&self, pass: &mut RenderPass<'_>) {
+    pub fn bind_group(&self, pass: &mut RenderPass<'_>) {
         if let Some(bind_group) = &self.bind_group {
             pass.set_bind_group(0, bind_group, &[]);
         }

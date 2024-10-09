@@ -3,7 +3,7 @@ use std::ops::Range;
 use wgpu::util::DeviceExt;
 use wgpu::RenderPass;
 
-use crate::renderer::{Context, Renderer};
+use crate::renderer::Context;
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
@@ -80,34 +80,32 @@ impl Mesh {
         }
     }
 
-    pub(crate) fn create_buffer(&mut self, renderer: &Renderer, mesh_index: u32) {
-        self.vertex_buffer = Some(renderer.context.device.create_buffer_init(
-            &wgpu::util::BufferInitDescriptor {
+    pub(crate) fn create_buffer(
+        &mut self,
+        device: &wgpu::Device,
+        bind_group_layou: &wgpu::BindGroupLayout,
+        mesh_index: u32,
+    ) {
+        self.vertex_buffer = Some(
+            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some(&format!("vertex{}_buffer", mesh_index)),
                 contents: bytemuck::cast_slice(&self.data),
                 usage: wgpu::BufferUsages::VERTEX,
-            },
-        ));
-        self.model_buffer = Some(
-            renderer
-                .context
-                .device
-                .create_buffer(&wgpu::BufferDescriptor {
-                    label: Some(&format!("mesh{}_buffer", mesh_index)),
-                    size: size_of::<[f32; 16]>() as u64,
-                    usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-                    mapped_at_creation: false,
-                }),
+            }),
         );
-        self.bind_group = Some(renderer.context.device.create_bind_group(
-            &wgpu::BindGroupDescriptor {
-                layout: &renderer.mesh_bind_group_layout,
-                entries: &[wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: self.model_buffer.as_ref().unwrap().as_entire_binding(),
-                }],
-                label: Some(&format!("mesh{}_bind_group", mesh_index)),
-            },
-        ));
+        self.model_buffer = Some(device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some(&format!("mesh{}_buffer", mesh_index)),
+            size: size_of::<[f32; 16]>() as u64,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        }));
+        self.bind_group = Some(device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: bind_group_layou,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: self.model_buffer.as_ref().unwrap().as_entire_binding(),
+            }],
+            label: Some(&format!("mesh{}_bind_group", mesh_index)),
+        }));
     }
 }

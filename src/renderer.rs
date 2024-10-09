@@ -115,7 +115,6 @@ pub struct Renderer<'a> {
     meshes: Vec<Mesh>,
     camera: OrthoCamera,
     render_pipeline: wgpu::RenderPipeline,
-    pub(crate) camera_bind_group_layout: wgpu::BindGroupLayout,
     pub(crate) mesh_bind_group_layout: wgpu::BindGroupLayout,
     pub(crate) context: Context<'a>,
 }
@@ -130,8 +129,8 @@ impl<'a> Renderer<'a> {
         let camera_bind_group_layout = context
             .device
             .create_bind_group_layout(&OrthoCamera::bind_group_layout_desc());
-        let camera = OrthoCamera::new(context.size.width, context.size.height);
-
+        let mut camera = OrthoCamera::new(context.size.width, context.size.height);
+        camera.create_buffer(&context.device, &camera_bind_group_layout);
         // Create mesh_bind_group_layout
         let mesh_bind_group_layout = context
             .device
@@ -190,7 +189,6 @@ impl<'a> Renderer<'a> {
             meshes: Vec::new(),
             camera,
             render_pipeline,
-            camera_bind_group_layout,
             mesh_bind_group_layout,
             context,
         }
@@ -238,7 +236,7 @@ impl<'a> Renderer<'a> {
             });
 
             render_pass.set_pipeline(&self.render_pipeline);
-            self.camera.bind(&mut render_pass);
+            self.camera.bind_group(&mut render_pass);
             self.meshes.iter_mut().for_each(|mesh| {
                 mesh.render(&mut render_pass, 0..1);
             });
@@ -258,15 +256,18 @@ impl<'a> Renderer<'a> {
     pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
         if new_size.width > 0 && new_size.height > 0 {
             self.context.resize(new_size);
-            if self.camera.resize(new_size.width, new_size.height) {
-                self.camera.update_buffer(self);
-            }
+            self.camera
+                .resize(new_size.width, new_size.height, &self.context.queue);
         }
     }
 
     pub fn add_mesh(&mut self, mesh: &[Vertex]) {
         let mut mesh = Mesh::new(mesh);
-        mesh.create_buffer(self, self.meshes.len() as u32);
+        mesh.create_buffer(
+            &self.context.device,
+            &self.mesh_bind_group_layout,
+            self.meshes.len() as u32,
+        );
         self.meshes.push(mesh);
     }
 }
