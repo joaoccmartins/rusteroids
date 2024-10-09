@@ -83,12 +83,9 @@ impl Mesh {
                 usage: wgpu::BufferUsages::VERTEX,
             }),
         );
-
-        self.model_buffer = Some(utils::create_buffer(
-            Mat4::IDENTITY.to_cols_array(),
-            device,
-            &format!("mesh{}_buffer", mesh_index),
-        ));
+        let model = Mat4::IDENTITY.to_cols_array();
+        let label = &format!("mesh{}_buffer", mesh_index);
+        self.model_buffer = Some(utils::create_buffer(model, device, label));
 
         self.bind_group = Some(device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: bind_group_layou,
