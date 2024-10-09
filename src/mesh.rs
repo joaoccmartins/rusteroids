@@ -1,5 +1,6 @@
 use std::ops::Range;
 
+use glam::Mat4;
 use wgpu::util::DeviceExt;
 use wgpu::RenderPass;
 
@@ -82,12 +83,13 @@ impl Mesh {
                 usage: wgpu::BufferUsages::VERTEX,
             }),
         );
-        self.model_buffer = Some(device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some(&format!("mesh{}_buffer", mesh_index)),
-            size: size_of::<[f32; 16]>() as u64,
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        }));
+
+        self.model_buffer = Some(utils::create_buffer(
+            Mat4::IDENTITY.to_cols_array(),
+            device,
+            &format!("mesh{}_buffer", mesh_index),
+        ));
+
         self.bind_group = Some(device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: bind_group_layou,
             entries: &[wgpu::BindGroupEntry {

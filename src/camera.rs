@@ -1,5 +1,5 @@
 use glam::Mat4;
-use wgpu::{util::DeviceExt, RenderPass};
+use wgpu::RenderPass;
 
 use crate::utils;
 
@@ -37,13 +37,8 @@ impl OrthoCamera {
         device: &wgpu::Device,
         bind_group_layout: &wgpu::BindGroupLayout,
     ) {
-        self.buffer = Some(
-            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Camera Buffer"),
-                contents: bytemuck::cast_slice(&self.proj_matrix()),
-                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            }),
-        );
+        let buffer = utils::create_buffer(self.proj_matrix(), device, "camera_buffer");
+        self.buffer = Some(buffer);
         self.bind_group = Some(device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: bind_group_layout,
             entries: &[wgpu::BindGroupEntry {

@@ -1,3 +1,5 @@
+use wgpu::util::DeviceExt;
+
 use crate::mesh::Vertex;
 
 /// A bunch of boilerplate code and meshes for now
@@ -39,4 +41,16 @@ pub fn uniform_layout_descriptor<'a>(label: &'a str) -> wgpu::BindGroupLayoutDes
         }],
         label: Some(label),
     }
+}
+
+// Create a buffer to be used as a uniform with a bind group
+pub fn create_buffer<'a, T>(data: T, device: &wgpu::Device, label: &'a str) -> wgpu::Buffer
+where
+    T: bytemuck::Pod + bytemuck::Zeroable,
+{
+    device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some(label),
+        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        contents: bytemuck::bytes_of(&data),
+    })
 }
