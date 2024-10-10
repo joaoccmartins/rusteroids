@@ -12,7 +12,7 @@ use crate::{
     utils::UniformBinding,
 };
 
-use wgpu_utils::VertexAttribute;
+use wgpu_utils::VertexAttributeArray;
 
 pub struct Context<'a> {
     size: winit::dpi::PhysicalSize<u32>,

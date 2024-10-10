@@ -1,7 +1,7 @@
 use proc_macro::TokenStream;
 use quote::quote;
 
-#[proc_macro_derive(VertexAttribute)]
+#[proc_macro_derive(VertexAttributeArray)]
 pub fn vertex_attribute_derive(input: TokenStream) -> TokenStream {
     // Construct a representation of Rust code as a syntax tree
     // that we can manipulate
@@ -13,7 +13,7 @@ pub fn vertex_attribute_derive(input: TokenStream) -> TokenStream {
 
 fn impl_vertex_attribute(_ast: &syn::DeriveInput) -> TokenStream {
     let gen = quote! {
-        impl VertexAttribute for Vertex {
+        impl VertexAttributeArray for Vertex {
             const ATTRIBS: [wgpu::VertexAttribute; 2] =
                 wgpu::vertex_attr_array![0 => Float32x2, 1 => Float32x3];
             fn desc() -> wgpu::VertexBufferLayout<'static> {

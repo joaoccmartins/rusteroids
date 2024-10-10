@@ -3,11 +3,11 @@ use std::ops::Range;
 use glam::Mat4;
 use wgpu::util::DeviceExt;
 use wgpu::{Queue, RenderPass};
-use wgpu_utils::VertexAttribute;
+use wgpu_utils::VertexAttributeArray;
 
 use crate::utils::{common_layout_descriptor, Bindable, UniformBuffer};
 #[repr(C)]
-#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable, VertexAttribute)]
+#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable, VertexAttributeArray)]
 pub struct Vertex {
     pub position: [f32; 2],
     pub color: [f32; 3],
