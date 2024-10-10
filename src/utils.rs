@@ -6,6 +6,7 @@ use crate::mesh::Vertex;
 
 /// A bunch of boilerplate code and meshes for now
 
+/// The battleship mesh
 pub const WEDGE: &[Vertex] = &[
     Vertex {
         position: [0.0, 20.0],
@@ -74,14 +75,15 @@ pub fn create_bind_group(
     })
 }
 
-/// A struct to manage both a uniform buffer and its bind group
+/// A struct to manage both a uniform buffer and its bind group in WebGPU.
+/// Directly relates to UniformBinding as the Layout needs to be managed outside of it.
 pub struct UniformBuffer {
     buffer: wgpu::Buffer,
     bind_group: wgpu::BindGroup,
 }
 
 impl UniformBuffer {
-    /// Creates a new UniformBuffer struct. Device and Layout already needs to exist
+    /// Creates a new UniformBuffer struct. Device and Layout already needs to exist.
     pub fn new<T>(
         data: &T,
         device: &wgpu::Device,
@@ -101,6 +103,7 @@ impl UniformBuffer {
         Self { buffer, bind_group }
     }
 
+    /// Updates the buffer content through a pre existing Queue
     pub fn update_buffer<T>(&self, data: &T, queue: &wgpu::Queue)
     where
         T: bytemuck::Pod + bytemuck::Zeroable,
@@ -108,12 +111,15 @@ impl UniformBuffer {
         queue.write_buffer(&self.buffer, 0, bytemuck::bytes_of(data));
     }
 
+    /// Binds self to a particular group in the RenderPipeline
     pub fn bind(&self, pass: &mut wgpu::RenderPass, group_index: u32) {
         pass.set_bind_group(group_index, &self.bind_group, &[]);
     }
 }
 
-/// Struct to manage the binding of Uniforms to a RenderPipeline according to Bindable type
+/// Struct to manage the binding of Uniforms to a RenderPipeline according to Bindable type.
+/// Only enables the creation of the RenderPipeline with a specific BindGroup Layout. Buffer
+/// is managed via UniformBuffer.
 pub struct UniformBinding {
     layout: wgpu::BindGroupLayout,
 }
@@ -137,6 +143,8 @@ impl Deref for UniformBinding {
     }
 }
 
+/// Marks a struct as Bindable to a pipeline, requirement the specification
+/// of a BindGroupLayoutDescriptor
 pub trait Bindable {
     fn layout_desc<'a>() -> wgpu::BindGroupLayoutDescriptor<'a>;
 }
