@@ -12,6 +12,8 @@ use crate::{
     utils::UniformBinding,
 };
 
+use wgpu_utils::VertexAttribute;
+
 pub struct Context<'a> {
     size: winit::dpi::PhysicalSize<u32>,
     surface: wgpu::Surface<'a>,
@@ -197,7 +199,10 @@ impl Deref for Gadget {
 }
 
 /// A renderer struct, binding Gadgets to multiple Uniform Bindings,
-/// enabling the rendering of Geometries
+/// enabling the rendering of Geometries. Effectively manages the
+/// rendering of Geometries with differing Gadgets (representing WebGPU
+/// pipelines).
+/// TODO: enable the usage of multiple Gadgets to render different Meshes
 pub struct Renderer<'a> {
     camera: OrthoCamera,
     gadget: Gadget,
@@ -217,6 +222,9 @@ impl<'a> Renderer<'a> {
 
         // Create mesh_bind_group_layout
         let model_matrix_binding = UniformBinding::new::<Geometry>(&context.device);
+
+        // Create a gadget for rendering with a camera and model matrix, using Vertex as
+        // the geometry buffer
         let gadget = Gadget::from(
             wgpu::include_wgsl!("shader.wgsl"),
             Vertex::desc(),
@@ -225,6 +233,7 @@ impl<'a> Renderer<'a> {
             context.config.format,
         );
 
+        // Add UniformBindings to the uniform map
         uniforms.insert("camera", camera_binding);
         uniforms.insert("model", model_matrix_binding);
 
@@ -236,6 +245,7 @@ impl<'a> Renderer<'a> {
         }
     }
 
+    /// Get an uniform that was used during the creation of one of the Gadgets
     pub fn get_uniform_binding(&self, uniform_name: &str) -> &UniformBinding {
         if let Some(uniform_binding) = self.uniforms.get(uniform_name) {
             uniform_binding
@@ -244,6 +254,8 @@ impl<'a> Renderer<'a> {
         }
     }
 
+    /// Renders meshes using the single Gadgets
+    /// TODO: enable multiple Gadgets and different runs of render for the same pass
     pub fn render(&mut self, meshes: &[Geometry]) -> Result<(), wgpu::SurfaceError> {
         let output = self.context.surface.get_current_texture()?;
         let view = output
