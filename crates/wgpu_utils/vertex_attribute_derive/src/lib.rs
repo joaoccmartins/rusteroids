@@ -40,7 +40,8 @@ fn impl_vertex_attribute(ast: &syn::DeriveInput) -> TokenStream {
         }
     });
 
-    let attrs_array_len = fields.len(); // The length of the array
+    // The length of the array to be generated
+    let attrs_array_len = fields.len();
 
     let gen = quote! {
         impl #name {
