@@ -3,7 +3,7 @@ use std::ops::Range;
 use glam::Mat4;
 use wgpu::util::DeviceExt;
 use wgpu::{Queue, RenderPass};
-use wgpu_utils::VertexAttributeArray;
+use wgpu_utils::{Attribute, VertexAttributeArray};
 
 use crate::utils::{common_layout_descriptor, Bindable, UniformBuffer};
 #[repr(C)]

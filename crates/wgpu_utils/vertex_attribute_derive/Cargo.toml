@@ -10,3 +10,4 @@ proc-macro = true
 quote = "1.0.37"
 syn = "2.0.79"
 wgpu = "22.0"
+wgpu_utils_base = {path = "../wgpu_utils_base" }
