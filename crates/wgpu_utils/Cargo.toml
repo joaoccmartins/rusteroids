@@ -5,4 +5,4 @@ edition = "2021"
 
 [dependencies]
 vertex_attribute_derive = { path = "vertex_attribute_derive" }
-wgpu_utils_base = { path = "wgpu_utils_base" }
+wgpu = "22.0"

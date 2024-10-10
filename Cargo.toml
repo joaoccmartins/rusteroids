@@ -6,5 +6,4 @@ members = [
     "crates/rusteroids",
     "crates/wgpu_utils",
     "crates/wgpu_utils/vertex_attribute_derive",
-    "crates/wgpu_utils/wgpu_utils_base",
 ]
