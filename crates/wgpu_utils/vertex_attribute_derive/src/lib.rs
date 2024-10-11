@@ -43,12 +43,19 @@ fn impl_vertex_attribute(ast: &syn::DeriveInput) -> TokenStream {
     };
 
     // Generate the vertex attributes
+    let mut previous_type = None;
     let field_types = fields.iter().enumerate().map(|(i, f)| {
         let ty = &f.ty;
+        let offset = if let Some(prev) = previous_type {
+            quote! {size_of::<#prev>() as u64}
+        } else {
+            quote! { 0 as u64}
+        };
+        previous_type = Some(ty);
         quote! {
             wgpu::VertexAttribute {
                 format: format_of::<#ty>(),
-                offset: size_of::<#ty>() as u64,
+                offset: #offset,
                 shader_location: #i as u32,
             }
         }
