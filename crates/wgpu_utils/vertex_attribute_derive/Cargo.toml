@@ -10,3 +10,4 @@ proc-macro = true
 quote = "1.0.37"
 syn = "2.0.79"
 wgpu = "22.0"
+internals = { path = "../internals" }

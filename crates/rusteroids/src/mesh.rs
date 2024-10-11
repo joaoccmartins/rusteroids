@@ -2,8 +2,8 @@ use std::ops::Range;
 
 use glam::Mat4;
 use wgpu::util::DeviceExt;
-use wgpu::{Queue, RenderPass, VertexAttribute};
-use wgpu_utils::VertexAttributeArray;
+use wgpu::{Queue, RenderPass};
+use wgpu_utils::{format_of, VertexAttributeArray};
 
 use crate::utils::{common_layout_descriptor, Bindable, UniformBuffer};
 #[repr(C)]
@@ -11,10 +11,6 @@ use crate::utils::{common_layout_descriptor, Bindable, UniformBuffer};
 pub struct Vertex {
     pub position: [f32; 2],
     pub color: [f32; 3],
-}
-
-impl Vertex {
-    const ATTR: [VertexAttribute; 2] = wgpu::vertex_attr_array![0 => Float32x2, 1 => Float32x3];
 }
 
 pub struct Geometry {

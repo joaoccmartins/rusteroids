@@ -5,5 +5,6 @@ resolver = "2"
 members = [
     "crates/rusteroids",
     "crates/wgpu_utils",
+    "crates/wgpu_utils/internals",
     "crates/wgpu_utils/vertex_attribute_derive",
 ]

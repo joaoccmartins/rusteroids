@@ -1,3 +1,4 @@
+pub use internals::format_of;
 pub use vertex_attribute_derive::VertexAttributeArray;
 
 pub trait VertexAttributeArray {
