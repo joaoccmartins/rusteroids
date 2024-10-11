@@ -1,6 +1,9 @@
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::{Data, Fields};
+
+/// Derives the ```VertexAttributeArray``` trait
+///
 /// Ensures the struct is capable of generating a VertexBufferLayout
 /// by calling desc. Requires that each field implement
 /// ```ConstFormat``` trait
