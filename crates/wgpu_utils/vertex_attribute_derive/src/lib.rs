@@ -2,7 +2,7 @@ use proc_macro::TokenStream;
 use quote::quote;
 use syn::{Data, Fields};
 /// Ensures the struct is capable of generating a VertexBufferLayout
-/// by calling desc. Requires the existing each field to implement
+/// by calling desc. Requires that each field implement
 /// ```ConstFormat``` trait
 ///
 /// Example
@@ -34,6 +34,7 @@ pub fn vertex_attribute_derive(input: TokenStream) -> TokenStream {
 
 fn impl_vertex_attribute(ast: &syn::DeriveInput) -> TokenStream {
     let name = &ast.ident;
+    // We pick each of the fields in our struct
     let fields = match &ast.data {
         Data::Struct(data) => {
             if let Fields::Named(named_fields) = &data.fields {
@@ -46,7 +47,7 @@ fn impl_vertex_attribute(ast: &syn::DeriveInput) -> TokenStream {
         _ => panic!("#[derive(VertexAttributeArray)] is only supported on structs"),
     };
 
-    // Generate the vertex attributes
+    // Generate the vertex attributes iterator that we'll be inserting in our static array
     let mut previous_type = None;
     let field_types = fields.iter().enumerate().map(|(i, f)| {
         let ty = &f.ty;
