@@ -2,22 +2,26 @@ use proc_macro::TokenStream;
 use quote::quote;
 use syn::{Data, Fields};
 /// Ensures the struct is capable of generating a VertexBufferLayout
-/// by calling desc. Requires the existing of a ```const ATTR: [wgpu::VertexAttribute; N]```
+/// by calling desc. Requires the existing each field to implement
+/// ```ConstFormat``` trait
 ///
 /// Example
 /// ```
-/// struct Vertex {
-///     pos: [f32; 3]
-///     uv:  [f32; 2]
+/// struct MyVec3{
+///     x: f32,
+///     y: f32,
+///     z: f32,
 /// }
 ///
-/// impl Vertex{
-///     const ATTR: [wgpu::VertexAttribute; 2] = wpug::vertex_attr_array![0 => Float32x3; 1 Float32x2];
+/// const_format_of!(MyVec3 => wgpu::VertexFormat::Float32x3);
+///
+/// #[derive(VertexAttributeArray)]
+/// struct Vertex {
+///     pos: MyVec3
+///     uv: [f32; 2] // Implements ConstFormat by default
 /// }
 /// ```
 ///
-/// TODO: make a bind_to_group(binding: u32, bind_group: &BindGroup, offsets: &[DynamicOffset])
-/// TODO: refactor ATTR requirement out
 #[proc_macro_derive(VertexAttributeArray)]
 pub fn vertex_attribute_derive(input: TokenStream) -> TokenStream {
     // Construct a representation of Rust code as a syntax tree
