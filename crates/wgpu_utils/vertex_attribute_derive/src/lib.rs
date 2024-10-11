@@ -1,4 +1,3 @@
-use internals::format_of;
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::{Data, Fields};
@@ -60,13 +59,13 @@ fn impl_vertex_attribute(ast: &syn::DeriveInput) -> TokenStream {
     let gen = quote! {
         impl VertexAttributeArray for #name {
             fn desc() -> wgpu::VertexBufferLayout<'static> {
-                static attr: [wgpu::VertexAttribute; #attrs_array_len] =  [
+                static ATTRIBUTES: [wgpu::VertexAttribute; #attrs_array_len] =  [
                     #(#field_types),*
                 ];
                 wgpu::VertexBufferLayout {
                     array_stride: std::mem::size_of::<Self>() as wgpu::BufferAddress,
                     step_mode: wgpu::VertexStepMode::Vertex,
-                    attributes: &attr,
+                    attributes: &ATTRIBUTES,
                 }
             }
         }
