@@ -88,3 +88,45 @@ fn impl_vertex_attribute(ast: &syn::DeriveInput) -> TokenStream {
 
     gen.into()
 }
+
+#[proc_macro_derive(BindableGroup)]
+pub fn bindable_group_derive(input: TokenStream) -> TokenStream {
+    let ast = syn::parse(input).unwrap();
+
+    impl_bindable_group(&ast)
+}
+
+fn impl_bindable_group(ast: &syn::DeriveInput) -> TokenStream {
+    let name = &ast.ident;
+    /// wgpu::BindGroupLayoutEntry {
+    ///     binding: 0,
+    ///     visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+    ///     ty: wgpu::BindingType::Buffer {
+    ///         ty: wgpu::BufferBindingType::Uniform,
+    ///         has_dynamic_offset: false,
+    ///         min_binding_size: None,
+    ///     },
+    ///     count: None,
+    /// } 
+    let fields = match ast.data{
+        Data::Struct(data_struct) => {
+            data_struct.fields
+        },
+        _ => panic!("#[derive(BindableGroup)] is only supported for structs"),
+    };
+    
+    let gen = quote! {
+        
+        impl Bindable for #name {
+            fn desc(label: Option<&str>) -> wgpu::BindGroupLayoutDescriptor<'static> {
+                static ENTRIES: [wgpu::BindGroupLayoutEntry; #entries_array_len] = [#(#field_entires),*];
+                wgpu::BindGroupLayoutDescriptor {
+                    entries: &ENTRIES,
+                    label,
+                }
+            }
+        }
+    }
+
+    gen.into()
+}

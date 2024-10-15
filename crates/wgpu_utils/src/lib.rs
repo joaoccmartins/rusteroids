@@ -6,3 +6,8 @@ pub trait VertexAttributeArray {
     /// TODO: refactor static out of it.
     fn desc() -> wgpu::VertexBufferLayout<'static>;
 }
+
+pub trait Bindable {
+    /// Generates a BindGroupDescriptor to be used in a RenderPipeline
+    fn desc(label: Option<&str>) -> wgpu::BindGroupLayoutDescriptor<'static>;
+}
