@@ -39,15 +39,13 @@ fn impl_vertex_attribute(ast: &syn::DeriveInput) -> TokenStream {
     let name = &ast.ident;
     // We pick each of the fields in our struct
     let fields = match &ast.data {
-        Data::Struct(data) => {
-            if let Fields::Named(named_fields) = &data.fields {
-                named_fields.named.clone()
-            } else {
-                panic!("#[derive(VertexAttributeArray)] is only supported on structs with named fields");
-            }
-        }
+        Data::Struct(data) => match &data.fields {
+            Fields::Named(fields_named) => fields_named.named.clone(),
+            Fields::Unnamed(fields_unnamed) => fields_unnamed.unnamed.clone(),
+            _ => panic!("#[derive(VertexAttributeArray)] is not supported in unit structs"),
+        },
         // TODO: Add enums
-        _ => panic!("#[derive(VertexAttributeArray)] is only supported on structs"),
+        _ => panic!("#[derive(VertexAttributeArray)] is only supported in structs"),
     };
 
     // Generate the vertex attributes iterator that we'll be inserting in our static array
