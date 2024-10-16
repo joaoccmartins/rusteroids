@@ -1,5 +1,5 @@
 pub use internals::format_of;
-pub use vertex_attribute_derive::VertexAttributeArray;
+pub use wgpu_utils_derive::VertexAttributeArray;
 
 pub trait VertexAttributeArray {
     /// Generates a VertexBufferLayout to be used in a RenderPipeline

@@ -96,33 +96,31 @@ pub fn bindable_group_derive(input: TokenStream) -> TokenStream {
 
 fn impl_bindable_group(ast: &syn::DeriveInput) -> TokenStream {
     let name = &ast.ident;
-    let fields = match &ast.data{
-        Data::Struct(data_struct) => {
-            match &data_struct.fields{
-                Fields::Named(fields_named) => fields_named.named.clone(),
-                Fields::Unnamed(fields_unnamed) => fields_unnamed.unnamed.clone(),
-                _ => panic!("#[derive(BindableGroup)] is not supported in unit structs"),
-            }
+    let fields = match &ast.data {
+        Data::Struct(data_struct) => match &data_struct.fields {
+            Fields::Named(fields_named) => fields_named.named.clone(),
+            Fields::Unnamed(fields_unnamed) => fields_unnamed.unnamed.clone(),
+            _ => panic!("#[derive(BindableGroup)] is not supported in unit structs"),
         },
         _ => panic!("#[derive(BindableGroup)] is only supported for structs"),
     };
 
-    let field_entries = fields.iter().map(|f|{
+    let field_entries = fields.iter().map(|f| {
         let ty = &f.ty;
         quote! {
             wgpu::BindGroupLayoutEntry {
                 binding: 0,
                 visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                ty binding_type_of<#ty>(): 
+                ty binding_type_of<#ty>():
                 count: None,
             }
         }
     });
 
     let entries_array_len = field_entries.len();
-    
+
     let gen = quote! {
-        
+
         impl Bindable for #name {
             fn desc(label: Option<&str>) -> wgpu::BindGroupLayoutDescriptor<'static> {
                 static ENTRIES: [wgpu::BindGroupLayoutEntry; #entries_array_len] = [#(#field_entries),*];
@@ -132,7 +130,7 @@ fn impl_bindable_group(ast: &syn::DeriveInput) -> TokenStream {
                 }
             }
         }
-    }
+    };
 
     gen.into()
 }
