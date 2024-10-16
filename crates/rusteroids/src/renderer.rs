@@ -6,7 +6,7 @@ use winit::{event::*, window::Window};
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
-use crate::camera::OrthoCamera;
+use crate::camera::{MyMat4, OrthoCamera};
 use crate::{
     mesh::{Geometry, Vertex},
     utils::UniformBinding,
@@ -216,12 +216,12 @@ impl<'a> Renderer<'a> {
         let mut uniforms: HashMap<&'a str, UniformBinding> = HashMap::new();
 
         // Create camera_bind_group_layout
-        let camera_binding = UniformBinding::new::<OrthoCamera>(&context.device);
+        let camera_binding = UniformBinding::new::<MyMat4>(&context.device);
         let mut camera = OrthoCamera::new(context.size.width, context.size.height);
         camera.setup(&context.device, &camera_binding);
 
         // Create mesh_bind_group_layout
-        let model_matrix_binding = UniformBinding::new::<Geometry>(&context.device);
+        let model_matrix_binding = UniformBinding::new::<MyMat4>(&context.device);
 
         // Create a gadget for rendering with a camera and model matrix, using Vertex as
         // the geometry buffer

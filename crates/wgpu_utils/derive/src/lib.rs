@@ -111,7 +111,7 @@ fn impl_bindable_group(ast: &syn::DeriveInput) -> TokenStream {
             wgpu::BindGroupLayoutEntry {
                 binding: 0,
                 visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                ty binding_type_of<#ty>():
+                ty: binding_type_of::<#ty>(),
                 count: None,
             }
         }
@@ -119,14 +119,15 @@ fn impl_bindable_group(ast: &syn::DeriveInput) -> TokenStream {
 
     let entries_array_len = field_entries.len();
 
+    // TODO: add label setup to derive macro
     let gen = quote! {
 
         impl Bindable for #name {
-            fn desc(label: Option<&str>) -> wgpu::BindGroupLayoutDescriptor<'static> {
+            fn desc() -> wgpu::BindGroupLayoutDescriptor<'static> {
                 static ENTRIES: [wgpu::BindGroupLayoutEntry; #entries_array_len] = [#(#field_entries),*];
                 wgpu::BindGroupLayoutDescriptor {
                     entries: &ENTRIES,
-                    label,
+                    label: None,
                 }
             }
         }

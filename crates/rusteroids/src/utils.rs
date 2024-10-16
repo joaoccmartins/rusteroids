@@ -3,6 +3,7 @@ use std::ops::Deref;
 use wgpu::util::DeviceExt;
 
 use crate::mesh::Vertex;
+use wgpu_utils::Bindable;
 
 /// A bunch of boilerplate code and meshes for now
 
@@ -29,23 +30,6 @@ pub const WEDGE: &[Vertex] = &[
         color: [1.0, 1.0, 1.0],
     },
 ];
-
-/// A common uniform layout descriptor, visible in both Vertex and Fragment
-pub fn common_layout_descriptor(label: Option<&str>) -> wgpu::BindGroupLayoutDescriptor {
-    wgpu::BindGroupLayoutDescriptor {
-        entries: &[wgpu::BindGroupLayoutEntry {
-            binding: 0,
-            visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-            ty: wgpu::BindingType::Buffer {
-                ty: wgpu::BufferBindingType::Uniform,
-                has_dynamic_offset: false,
-                min_binding_size: None,
-            },
-            count: None,
-        }],
-        label,
-    }
-}
 
 // Create a buffer to be used as a uniform with a bind group
 pub fn create_buffer<T>(data: &T, device: &wgpu::Device, label: &str) -> wgpu::Buffer
@@ -130,7 +114,7 @@ impl UniformBinding {
         T: Bindable,
     {
         Self {
-            layout: device.create_bind_group_layout(&T::layout_desc()),
+            layout: device.create_bind_group_layout(&T::desc()),
         }
     }
 }
@@ -141,10 +125,4 @@ impl Deref for UniformBinding {
     fn deref(&self) -> &Self::Target {
         &self.layout
     }
-}
-
-/// Marks a struct as Bindable to a pipeline, requirement the specification
-/// of a BindGroupLayoutDescriptor
-pub trait Bindable {
-    fn layout_desc<'a>() -> wgpu::BindGroupLayoutDescriptor<'a>;
 }

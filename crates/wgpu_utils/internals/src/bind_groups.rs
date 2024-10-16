@@ -2,6 +2,7 @@
 /// TODO: expand to other BindingTypes
 pub enum BindType {
     Uniform,
+    Texture,
 }
 
 /// Defines the default Binding Type of a particular type.
