@@ -1,0 +1,9 @@
+[package]
+name = "wgpu_utils"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+vertex_attribute_derive = { path = "vertex_attribute_derive" }
+wgpu = "22.0"
+internals = { path = "internals"}
