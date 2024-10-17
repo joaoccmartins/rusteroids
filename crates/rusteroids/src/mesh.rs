@@ -5,7 +5,7 @@ use wgpu::util::DeviceExt;
 use wgpu::{Queue, RenderPass};
 use wgpu_utils::{format_of, VertexAttributeArray};
 
-use crate::utils::{common_layout_descriptor, Bindable, UniformBuffer};
+use crate::utils::UniformBuffer;
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable, VertexAttributeArray)]
 pub struct Vertex {
@@ -17,12 +17,6 @@ pub struct Geometry {
     vertex_buffer: Option<wgpu::Buffer>,
     model_uniform: Option<UniformBuffer>,
     geometry_size: usize,
-}
-
-impl Bindable for Geometry {
-    fn layout_desc<'a>() -> wgpu::BindGroupLayoutDescriptor<'a> {
-        common_layout_descriptor(Some("mat4_layout_descriptor"))
-    }
 }
 
 impl Geometry {

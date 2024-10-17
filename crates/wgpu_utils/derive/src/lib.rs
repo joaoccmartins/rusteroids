@@ -86,3 +86,52 @@ fn impl_vertex_attribute(ast: &syn::DeriveInput) -> TokenStream {
 
     gen.into()
 }
+
+#[proc_macro_derive(BindableGroup)]
+pub fn bindable_group_derive(input: TokenStream) -> TokenStream {
+    let ast = syn::parse(input).unwrap();
+
+    impl_bindable_group(&ast)
+}
+
+fn impl_bindable_group(ast: &syn::DeriveInput) -> TokenStream {
+    let name = &ast.ident;
+    let fields = match &ast.data {
+        Data::Struct(data_struct) => match &data_struct.fields {
+            Fields::Named(fields_named) => fields_named.named.clone(),
+            Fields::Unnamed(fields_unnamed) => fields_unnamed.unnamed.clone(),
+            _ => panic!("#[derive(BindableGroup)] is not supported in unit structs"),
+        },
+        _ => panic!("#[derive(BindableGroup)] is only supported for structs"),
+    };
+
+    let field_entries = fields.iter().map(|f| {
+        let ty = &f.ty;
+        quote! {
+            wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: binding_type_of::<#ty>(),
+                count: None,
+            }
+        }
+    });
+
+    let entries_array_len = field_entries.len();
+
+    // TODO: add label setup to derive macro
+    let gen = quote! {
+
+        impl Bindable for #name {
+            fn desc() -> wgpu::BindGroupLayoutDescriptor<'static> {
+                static ENTRIES: [wgpu::BindGroupLayoutEntry; #entries_array_len] = [#(#field_entries),*];
+                wgpu::BindGroupLayoutDescriptor {
+                    entries: &ENTRIES,
+                    label: None,
+                }
+            }
+        }
+    };
+
+    gen.into()
+}

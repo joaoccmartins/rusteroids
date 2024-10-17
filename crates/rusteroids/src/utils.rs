@@ -1,5 +1,3 @@
-use std::ops::Deref;
-
 use wgpu::util::DeviceExt;
 
 use crate::mesh::Vertex;
@@ -30,53 +28,8 @@ pub const WEDGE: &[Vertex] = &[
     },
 ];
 
-/// A common uniform layout descriptor, visible in both Vertex and Fragment
-pub fn common_layout_descriptor(label: Option<&str>) -> wgpu::BindGroupLayoutDescriptor {
-    wgpu::BindGroupLayoutDescriptor {
-        entries: &[wgpu::BindGroupLayoutEntry {
-            binding: 0,
-            visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-            ty: wgpu::BindingType::Buffer {
-                ty: wgpu::BufferBindingType::Uniform,
-                has_dynamic_offset: false,
-                min_binding_size: None,
-            },
-            count: None,
-        }],
-        label,
-    }
-}
-
-// Create a buffer to be used as a uniform with a bind group
-pub fn create_buffer<T>(data: &T, device: &wgpu::Device, label: &str) -> wgpu::Buffer
-where
-    T: bytemuck::Pod + bytemuck::Zeroable,
-{
-    device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some(label),
-        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        contents: bytemuck::bytes_of(data),
-    })
-}
-
-pub fn create_bind_group(
-    device: &wgpu::Device,
-    layout: &wgpu::BindGroupLayout,
-    buffer: &wgpu::Buffer,
-    label: &str,
-) -> wgpu::BindGroup {
-    device.create_bind_group(&wgpu::BindGroupDescriptor {
-        layout,
-        entries: &[wgpu::BindGroupEntry {
-            binding: 0,
-            resource: buffer.as_entire_binding(),
-        }],
-        label: Some(label),
-    })
-}
-
-/// A struct to manage both a uniform buffer and its bind group in WebGPU.
-/// Directly relates to UniformBinding as the Layout needs to be managed outside of it.
+/// A struct to manage both a uniform buffer and its bind group in wgpu.
+/// Directly relates to BindGroupLayout as the Layout needs to be managed outside of it.
 pub struct UniformBuffer {
     buffer: wgpu::Buffer,
     bind_group: wgpu::BindGroup,
@@ -93,13 +46,20 @@ impl UniformBuffer {
     where
         T: bytemuck::Pod + bytemuck::Zeroable,
     {
-        let buffer = create_buffer(data, device, &format!("{}_buffer", label_prefix));
-        let bind_group = create_bind_group(
-            device,
+        let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some(&format!("{}_buffer", label_prefix)),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            contents: bytemuck::bytes_of(data),
+        });
+
+        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout,
-            &buffer,
-            &format!("{}_bind_group", label_prefix),
-        );
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: buffer.as_entire_binding(),
+            }],
+            label: Some(&format!("{}_bind_group", label_prefix)),
+        });
         Self { buffer, bind_group }
     }
 
@@ -115,36 +75,4 @@ impl UniformBuffer {
     pub fn bind(&self, pass: &mut wgpu::RenderPass, group_index: u32) {
         pass.set_bind_group(group_index, &self.bind_group, &[]);
     }
-}
-
-/// Struct to manage the binding of Uniforms to a RenderPipeline according to Bindable type.
-/// Only enables the creation of the RenderPipeline with a specific BindGroup Layout. Buffer
-/// is managed via UniformBuffer.
-pub struct UniformBinding {
-    layout: wgpu::BindGroupLayout,
-}
-
-impl UniformBinding {
-    pub fn new<T>(device: &wgpu::Device) -> Self
-    where
-        T: Bindable,
-    {
-        Self {
-            layout: device.create_bind_group_layout(&T::layout_desc()),
-        }
-    }
-}
-
-impl Deref for UniformBinding {
-    type Target = wgpu::BindGroupLayout;
-
-    fn deref(&self) -> &Self::Target {
-        &self.layout
-    }
-}
-
-/// Marks a struct as Bindable to a pipeline, requirement the specification
-/// of a BindGroupLayoutDescriptor
-pub trait Bindable {
-    fn layout_desc<'a>() -> wgpu::BindGroupLayoutDescriptor<'a>;
 }

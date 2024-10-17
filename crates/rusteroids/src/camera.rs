@@ -1,7 +1,8 @@
 use glam::Mat4;
 use wgpu::RenderPass;
+use wgpu_utils::{binding_type_of, Bindable, BindableGroup};
 
-use crate::utils::{common_layout_descriptor, Bindable, UniformBuffer};
+use crate::utils::UniformBuffer;
 
 const GL_TO_WGPU: Mat4 = Mat4::from_cols(
     glam::vec4(1.0, 0.0, 0.0, 0.0),
@@ -10,17 +11,16 @@ const GL_TO_WGPU: Mat4 = Mat4::from_cols(
     glam::vec4(0.0, 0.0, 0.5, 1.0),
 );
 
+#[derive(BindableGroup, Clone)]
+pub struct MyMat4 {
+    data: [f32; 16],
+}
+
 // TODO: convert this to trait to enable Perspective cameras as well
 pub struct OrthoCamera {
     width: u32,
     height: u32,
     uniform: Option<UniformBuffer>,
-}
-
-impl Bindable for OrthoCamera {
-    fn layout_desc<'a>() -> wgpu::BindGroupLayoutDescriptor<'a> {
-        common_layout_descriptor(Some("mat4_layout_descriptor"))
-    }
 }
 
 impl OrthoCamera {
