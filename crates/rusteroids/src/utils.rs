@@ -1,9 +1,6 @@
-use std::ops::Deref;
-
 use wgpu::util::DeviceExt;
 
 use crate::mesh::Vertex;
-use wgpu_utils::Bindable;
 
 /// A bunch of boilerplate code and meshes for now
 
@@ -98,31 +95,5 @@ impl UniformBuffer {
     /// Binds self to a particular group in the RenderPipeline
     pub fn bind(&self, pass: &mut wgpu::RenderPass, group_index: u32) {
         pass.set_bind_group(group_index, &self.bind_group, &[]);
-    }
-}
-
-/// Struct to manage the binding of Uniforms to a RenderPipeline according to Bindable type.
-/// Only enables the creation of the RenderPipeline with a specific BindGroup Layout. Buffer
-/// is managed via UniformBuffer.
-pub struct UniformBinding {
-    layout: wgpu::BindGroupLayout,
-}
-
-impl UniformBinding {
-    pub fn new<T>(device: &wgpu::Device) -> Self
-    where
-        T: Bindable,
-    {
-        Self {
-            layout: device.create_bind_group_layout(&T::desc()),
-        }
-    }
-}
-
-impl Deref for UniformBinding {
-    type Target = wgpu::BindGroupLayout;
-
-    fn deref(&self) -> &Self::Target {
-        &self.layout
     }
 }

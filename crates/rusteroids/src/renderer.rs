@@ -7,12 +7,9 @@ use winit::{event::*, window::Window};
 use wasm_bindgen::prelude::*;
 
 use crate::camera::{MyMat4, OrthoCamera};
-use crate::{
-    mesh::{Geometry, Vertex},
-    utils::UniformBinding,
-};
+use crate::mesh::{Geometry, Vertex};
 
-use wgpu_utils::VertexAttributeArray;
+use wgpu_utils::{Bindable, VertexAttributeArray};
 
 pub struct Context<'a> {
     size: winit::dpi::PhysicalSize<u32>,
@@ -206,22 +203,22 @@ impl Deref for Gadget {
 pub struct Renderer<'a> {
     camera: OrthoCamera,
     gadget: Gadget,
-    uniforms: HashMap<&'a str, UniformBinding>,
+    uniforms: HashMap<&'a str, wgpu::BindGroupLayout>,
     context: Context<'a>,
 }
 
 impl<'a> Renderer<'a> {
     pub async fn new(window: &'a Window) -> Renderer<'a> {
         let context = Context::<'a>::new(window).await;
-        let mut uniforms: HashMap<&'a str, UniformBinding> = HashMap::new();
+        let mut uniforms: HashMap<_, _> = HashMap::new();
 
         // Create camera_bind_group_layout
-        let camera_binding = UniformBinding::new::<MyMat4>(&context.device);
+        let camera_binding = context.device.create_bind_group_layout(&MyMat4::desc());
         let mut camera = OrthoCamera::new(context.size.width, context.size.height);
         camera.setup(&context.device, &camera_binding);
 
         // Create mesh_bind_group_layout
-        let model_matrix_binding = UniformBinding::new::<MyMat4>(&context.device);
+        let model_matrix_binding = context.device.create_bind_group_layout(&MyMat4::desc());
 
         // Create a gadget for rendering with a camera and model matrix, using Vertex as
         // the geometry buffer
@@ -246,7 +243,7 @@ impl<'a> Renderer<'a> {
     }
 
     /// Get an uniform that was used during the creation of one of the Gadgets
-    pub fn get_uniform_binding(&self, uniform_name: &str) -> &UniformBinding {
+    pub fn get_uniform_binding(&self, uniform_name: &str) -> &wgpu::BindGroupLayout {
         if let Some(uniform_binding) = self.uniforms.get(uniform_name) {
             uniform_binding
         } else {
