@@ -28,36 +28,8 @@ pub const WEDGE: &[Vertex] = &[
     },
 ];
 
-// Create a buffer to be used as a uniform with a bind group
-pub fn create_buffer<T>(data: &T, device: &wgpu::Device, label: &str) -> wgpu::Buffer
-where
-    T: bytemuck::Pod + bytemuck::Zeroable,
-{
-    device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some(label),
-        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        contents: bytemuck::bytes_of(data),
-    })
-}
-
-pub fn create_bind_group(
-    device: &wgpu::Device,
-    layout: &wgpu::BindGroupLayout,
-    buffer: &wgpu::Buffer,
-    label: &str,
-) -> wgpu::BindGroup {
-    device.create_bind_group(&wgpu::BindGroupDescriptor {
-        layout,
-        entries: &[wgpu::BindGroupEntry {
-            binding: 0,
-            resource: buffer.as_entire_binding(),
-        }],
-        label: Some(label),
-    })
-}
-
-/// A struct to manage both a uniform buffer and its bind group in WebGPU.
-/// Directly relates to UniformBinding as the Layout needs to be managed outside of it.
+/// A struct to manage both a uniform buffer and its bind group in wgpu.
+/// Directly relates to BindGroupLayout as the Layout needs to be managed outside of it.
 pub struct UniformBuffer {
     buffer: wgpu::Buffer,
     bind_group: wgpu::BindGroup,
@@ -74,13 +46,20 @@ impl UniformBuffer {
     where
         T: bytemuck::Pod + bytemuck::Zeroable,
     {
-        let buffer = create_buffer(data, device, &format!("{}_buffer", label_prefix));
-        let bind_group = create_bind_group(
-            device,
+        let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some(&format!("{}_buffer", label_prefix)),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            contents: bytemuck::bytes_of(data),
+        });
+
+        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout,
-            &buffer,
-            &format!("{}_bind_group", label_prefix),
-        );
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: buffer.as_entire_binding(),
+            }],
+            label: Some(&format!("{}_bind_group", label_prefix)),
+        });
         Self { buffer, bind_group }
     }
 
